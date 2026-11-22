@@ -15,7 +15,8 @@ preparation.
 | Currency and History refinements | Implemented | Currency display, safe single-record History deletion, saved computation explanations, corrected card text, and accessible date confirmation. |
 | MVP implementation baseline | Committed and pushed | `a94a96b8c521fc1e7363180679f8ae6e08e47d53` contains the completed MVP implementation. Repository review on 2026-11-23 confirmed that it matched local `main`, `origin/main`, and live remote `main` at that time. |
 | Documentation and metadata | Committed and pushed | `86e2a9605b0e92d2732c0fa9ebe5337cb0c9f63d` is the subsequent documentation-and-metadata commit. The editorial review confirmed local `main`, `origin/main`, and live remote `main` at this commit. |
-| Production release preparation | Pending | Package version remains `1.0.0+1`. Version approval, licensing, signing, candidate verification, and publication remain separate decisions. |
+| Project license | Integrated, pending commit | MIT License; Copyright (c) 2026 hectordoesgorug. The root `LICENSE` and documentation edits are part of this uncommitted change. |
+| Production release preparation | Pending | Package version remains `1.0.0+1`. Release-version approval, signing, candidate verification, and publication remain separate decisions. |
 
 The earlier progress page described the refinements as local and physical-device
 checks as pending. Source publication and reported manual testing subsequently
@@ -54,7 +55,7 @@ rerun Flutter tests, compile Kotlin, build an APK, or install on a device.
 
 The following work remains before a first production release:
 
-1. Approve the version/build number and project license. No root LICENSE file is present.
+1. Approve the release version/build number. The project MIT license is recorded in the root `LICENSE`; this integration is complete once the current change is committed.
 2. Review the documentation changes and establish an approved source baseline.
 3. Complete dependency and asset attribution review. Local resolved packages
    `material_ui` 1.11.1 and `cupertino_ui` 1.1.7 contain BSD three-clause terms;

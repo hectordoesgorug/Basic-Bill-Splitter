@@ -164,7 +164,7 @@ contrast, following the [GitHub logo guidelines](https://brand.github.com/founda
 GitHub and the Invertocat mark are trademarks of GitHub, Inc.; the link does not
 imply sponsorship or endorsement.
 
-The project has no root LICENSE file. A project license has not yet been selected.
-Third-party packages and assets retain their own terms.
-Dependency notices and their distribution requirements still need a release
-review; see [Progress](docs/PROGRESS.md#release-preparation).
+The project is licensed under the [MIT License](LICENSE). That license covers
+this project's original work; third-party packages, assets, trademarks, and logos
+retain their own terms. Dependency notices and their distribution requirements
+still need a release review; see [Progress](docs/PROGRESS.md#release-preparation).
