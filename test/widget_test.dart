@@ -37,8 +37,15 @@ Future<void> next(WidgetTester tester) async {
 }
 
 Future<void> back(WidgetTester tester) async {
-  await tester.tap(find.byKey(const ValueKey('back')));
+  final footerBack = find.byKey(const ValueKey('back'));
+  await tester.tap(
+    footerBack.evaluate().isNotEmpty ? footerBack : find.byTooltip('Back'),
+  );
   await tester.pumpAndSettle();
+  if (find.text('Revisit calculation?').evaluate().isNotEmpty) {
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> select(WidgetTester tester, String key, String label) async {
@@ -266,7 +273,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('How to'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('1. Bill Details'), findsOneWidget);
+      expect(find.textContaining('Details — enter'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       await tester.binding.handlePopRoute();
@@ -323,7 +330,7 @@ void main() {
       await openMenu();
       await tester.tap(find.text('How to'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('1. Bill Details'), findsOneWidget);
+      expect(find.textContaining('Details — enter'), findsOneWidget);
       expect(
         find.textContaining('including metered occupants'),
         findsOneWidget,
@@ -439,7 +446,7 @@ void main() {
       expect(range.start, '2026-11-06');
       expect(range.end, '2026-11-08');
       await next(tester);
-      expect(find.text('Review'), findsOneWidget);
+      expect(find.text('Review').last, findsOneWidget);
       expect(
         find.text('Date ranges · 3 days · 2026-11-06 to 2026-11-08'),
         findsOneWidget,
@@ -614,7 +621,7 @@ void main() {
     await next(tester);
     await next(tester);
     await next(tester);
-    expect(find.text('Review'), findsOneWidget);
+    expect(find.text('Review').last, findsOneWidget);
     expect(find.text('Total consumption: 3.00 kWh'), findsOneWidget);
     expect(find.text('Measured usage: 1.23 kWh'), findsOneWidget);
     expect(find.text('Measured usage: 0.00 kWh'), findsOneWidget);
@@ -626,7 +633,7 @@ void main() {
     );
 
     await next(tester);
-    expect(find.text('Results'), findsOneWidget);
+    expect(find.text('Results').last, findsOneWidget);
     expect(find.text('Total consumption: 3.00 kWh'), findsOneWidget);
     expect(find.text('Measured usage: 1.23 kWh'), findsOneWidget);
     expect(find.text('Measured usage: 0.00 kWh'), findsOneWidget);
@@ -724,10 +731,10 @@ void main() {
       await select(tester, 'h1.o0.mode', 'Manual days');
       await enter(tester, 'h1.o0.days', '10');
       await next(tester);
-      expect(find.text('Review'), findsOneWidget);
+      expect(find.text('Review').last, findsOneWidget);
       expect(find.text('Apartment A'), findsOneWidget);
       await next(tester);
-      expect(find.text('Results'), findsOneWidget);
+      expect(find.text('Results').last, findsOneWidget);
       expect(
         tester.widget<Text>(find.byKey(const ValueKey('householdTotal0'))).data,
         '₱800.00',
@@ -766,6 +773,8 @@ void main() {
     await next(tester);
     await enter(tester, 'h0.o0.measured', '101');
     await next(tester);
+    expect(find.text('Review').last, findsOneWidget);
+    await next(tester);
     expect(find.text('Usage & Duration'), findsOneWidget);
     final field = tester.widget<TextField>(
       find.descendant(
@@ -776,7 +785,7 @@ void main() {
     expect(field.decoration?.errorText, contains('must not exceed 100'));
     await enter(tester, 'h0.o0.measured', '100');
     await next(tester);
-    expect(find.text('Review'), findsOneWidget);
+    expect(find.text('Review').last, findsOneWidget);
   });
 
   testWidgets('headcount and duration errors stay at their step', (
@@ -785,13 +794,15 @@ void main() {
     await pumpDraft(tester, validDraft());
     await next(tester);
     await enter(tester, 'h0.name', '');
-    await enter(tester, 'h0.headcount', '0');
+    await tester.tap(find.byKey(const ValueKey('h0.headcount.decrement')));
+    await tester.pump();
     await next(tester);
-    expect(find.text('Households'), findsOneWidget);
+    expect(find.text('Households').last, findsOneWidget);
     expect(find.text('Enter a household name.'), findsOneWidget);
-    expect(find.textContaining('whole number from 1 to 100'), findsOneWidget);
+    expect(find.textContaining('whole number from 1 to 10'), findsOneWidget);
     await enter(tester, 'h0.name', 'A');
-    await enter(tester, 'h0.headcount', '1');
+    await tester.tap(find.byKey(const ValueKey('h0.headcount.increment')));
+    await tester.pump();
     await next(tester);
     await select(tester, 'h0.o0.mode', 'Manual days');
     await enter(tester, 'h0.o0.days', '31');
@@ -818,7 +829,7 @@ void main() {
     expect(find.textContaining('Ranges must not overlap'), findsOneWidget);
     await enter(tester, 'h0.o0.r1.start', '2026-11-06');
     await next(tester);
-    expect(find.text('Review'), findsOneWidget);
+    expect(find.text('Review').last, findsOneWidget);
     expect(find.textContaining('Date ranges · 6 days'), findsOneWidget);
     await back(tester);
     final field = find.descendant(
@@ -838,7 +849,7 @@ void main() {
     await next(tester);
     await next(tester);
     await next(tester);
-    expect(find.text('Results'), findsOneWidget);
+    expect(find.text('Results').last, findsOneWidget);
     expect(find.text('Occupant 1'), findsOneWidget);
     expect(find.text('Occupant 2'), findsOneWidget);
     expect(find.textContaining('Occupant 1 · ₱'), findsNothing);
@@ -850,7 +861,7 @@ void main() {
   });
 
   testWidgets(
-    'system Back retains draft and new calculation requires confirmation',
+    'system Back retains draft and Results Exit requires confirmation',
     (tester) async {
       final draft = validDraft();
       await pumpDraft(tester, draft);
@@ -868,12 +879,14 @@ void main() {
       await next(tester);
       await next(tester);
       await next(tester);
-      await next(tester);
+      await tester.tap(find.byKey(const ValueKey('exit')));
+      await tester.pumpAndSettle();
       expect(find.text('Discard this calculation?'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      expect(find.text('Results'), findsOneWidget);
-      await next(tester);
+      expect(find.text('Results').last, findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('exit')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
       expect(find.text('Choose a bill type'), findsOneWidget);
@@ -900,7 +913,7 @@ void main() {
     final button = find.byKey(const ValueKey('next'));
     expect(tester.getBottomRight(button).dy, lessThanOrEqualTo(544));
     await next(tester);
-    expect(find.text('Households'), findsOneWidget);
+    expect(find.text('Households').last, findsOneWidget);
     expect(tester.getBottomRight(button).dy, lessThanOrEqualTo(544));
     expect(
       tester.getBottomRight(find.byKey(const ValueKey('back'))).dy,
@@ -908,6 +921,166 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'tabs unlock after validation and headcount uses bounded stepper',
+    (tester) async {
+      await pumpDraft(tester, validDraft());
+      final reviewTab = find.widgetWithText(ChoiceChip, 'Review');
+      expect(tester.widget<ChoiceChip>(reviewTab).onSelected, isNull);
+      await next(tester);
+      expect(find.byKey(const ValueKey('h0.headcount.value')), findsOneWidget);
+      expect(find.text('1').last, findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('h0.headcount.decrement')));
+      await tester.pump();
+      expect(find.text('0').last, findsOneWidget);
+      await next(tester);
+      expect(find.textContaining('whole number from 1 to 10'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('h0.headcount.increment')));
+      await tester.pump();
+      await next(tester);
+      expect(find.text('Usage & Duration'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Households'));
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 9; i++) {
+        await tester.tap(find.byKey(const ValueKey('h0.headcount.increment')));
+        await tester.pump();
+      }
+      expect(find.text('10').last, findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byKey(const ValueKey('h0.headcount.increment')),
+            )
+            .onPressed,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets('Clear Usage confirms and preserves bill and household details', (
+    tester,
+  ) async {
+    final draft = validDraft();
+    await pumpDraft(tester, draft);
+    await next(tester);
+    await enter(tester, 'h0.name', 'Apartment A');
+    await next(tester);
+    await enter(tester, 'h0.o0.measured', '12');
+    await select(tester, 'h0.o0.mode', 'Manual days');
+    await enter(tester, 'h0.o0.days', '10');
+    await tester.tap(find.byKey(const ValueKey('clear')));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear usage?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(draft.households.single.occupants.single.measured, '12');
+    await tester.tap(find.byKey(const ValueKey('clear')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear').last);
+    await tester.pumpAndSettle();
+    expect(draft.amount, '1000.00');
+    expect(draft.households.single.name, 'Apartment A');
+    expect(draft.households.single.headcount, '1');
+    expect(draft.households.single.occupants.single.measured, '');
+    expect(
+      draft.households.single.occupants.single.mode,
+      OccupancyMode.fullPeriod,
+    );
+    expect(draft.households.single.occupants.single.days, '');
+  });
+
+  testWidgets(
+    'Households Clear resets only household data after confirmation',
+    (tester) async {
+      final draft = validDraft();
+      await pumpDraft(tester, draft);
+      await next(tester);
+      await enter(tester, 'h0.name', 'Apartment A');
+      await tester.tap(find.byKey(const ValueKey('h0.headcount.increment')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('clear')));
+      await tester.pumpAndSettle();
+      expect(find.text('Clear households?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(draft.households.single.name, 'Apartment A');
+      expect(draft.households.single.headcount, '2');
+      await tester.tap(find.byKey(const ValueKey('clear')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear').last);
+      await tester.pumpAndSettle();
+      expect(draft.households, hasLength(1));
+      expect(draft.households.single.name, 'Household 1');
+      expect(draft.households.single.headcount, '1');
+      expect(draft.households.single.occupants, hasLength(1));
+      expect(draft.amount, '1000.00');
+    },
+  );
+
+  testWidgets(
+    'Results revisit cancel preserves results; edits require recalculation',
+    (tester) async {
+      final draft = validDraft();
+      await pumpDraft(tester, draft);
+      await next(tester);
+      await next(tester);
+      await next(tester);
+      await next(tester);
+      expect(find.text('Results').last, findsOneWidget);
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const ValueKey('saveDisabled')))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const ValueKey('shareDisabled')))
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Revisit calculation?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Results').last, findsOneWidget);
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const ValueKey('saveDisabled')))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const ValueKey('shareDisabled')))
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Details'));
+      await tester.pumpAndSettle();
+      await enter(tester, 'amount', '2000.00');
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Results'))
+            .onSelected,
+        isNull,
+      );
+      await next(tester);
+      await next(tester);
+      await next(tester);
+      await next(tester);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('billTotal'))).data,
+        '₱2,000.00',
+      );
+    },
+  );
 
   testWidgets('phone width and large text remain scrollable without overflow', (
     tester,
@@ -930,7 +1103,7 @@ void main() {
     await next(tester);
     await next(tester);
     await next(tester);
-    expect(find.text('Results'), findsOneWidget);
+    expect(find.text('Results').last, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

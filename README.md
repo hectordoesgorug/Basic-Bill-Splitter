@@ -14,21 +14,13 @@ Start on Home, which displays the project banner and six bill buttons:
 Electricity, Water, Internet, Rent, LPG, and Misc, each with a Material icon.
 Each button starts a new draft with the category's default allocation method.
 
-1. **Bill Details** — check the selected category, choose the allocation method,
-   enter the PHP amount and inclusive billing period, and supply total consumption
-   for hybrid.
-2. **Households** — enter household names and participating occupant headcounts.
-   The form accepts 1–100 occupants per household to guard against accidental
-   generation of thousands of fields. This is a UI limit, not an engine limit.
-3. **Usage & Duration** — optionally enter each occupant's measured usage.
-   Select manual days, Full Period, or one or more occupancy date ranges.
-   Manual days must be within the bill period's length. Date ranges must lie
-   within the bill period and must not overlap for the same occupant; both
-   endpoints count, so sharing an endpoint is an overlap.
-4. **Review** — inspect the bill, household and occupant inputs.
-5. **Results** — view PHP household totals and, for hybrid/person-days,
-   reconciled occupant amounts. Equal-per-household shows occupant inputs
-   without assigning individual monetary shares.
+Five tabs—**Details**, **Households**, **Usage**, **Review**, and **Results**—show workflow progress. A tab becomes available only after its preceding step validates; available earlier tabs can be revisited directly.
+
+1. **Details** — check the selected category, choose the allocation method, enter the PHP amount and inclusive billing period, and supply total consumption for hybrid.
+2. **Households** — name households and set each headcount with the minus/value/plus stepper (0–10). Zero is selectable for editing, but each participating household must have 1–10 occupants to continue. Clear resets this section to one default household and occupant.
+3. **Usage** — optionally enter measured usage and choose manual days, Full Period, or date ranges. Manual days must fit the billing period; ranges must be inside it and cannot overlap for the same occupant, including shared endpoints. Clear resets usage and duration fields while preserving household and bill details.
+4. **Review** — inspect the bill, household, and occupant inputs. Calculate recomputes from the current validated draft.
+5. **Results** — view household totals and, for hybrid/person-days, reconciled occupant amounts. Equal-per-household shows occupant inputs without inventing individual monetary shares. Save and Share are disabled; Exit returns Home after the existing discard confirmation.
 
 Category defaults are Electricity and Water → hybrid; Internet, Rent and LPG →
 person-days; Miscellaneous → equal per household. Selecting a category applies
@@ -57,18 +49,11 @@ Review, and Results. Prominent names and nested occupant sections identify each
 group without relying on color alone. Accents remain assigned to the same
 household when other households are removed or added.
 
-Back buttons and Android system Back return to the previous step and preserve
-inputs. Back from Bill Details returns Home. The Home button and New calculation
-from Results also return Home for category selection. Leaving meaningful inputs
-requires discard confirmation; cancelling keeps the draft. Reducing and then
-increasing a headcount retains the inactive occupant entries within this draft.
-Household removal requires confirmation. The draft is not restored after process
-termination.
+Available tabs and Back navigation preserve the in-memory draft. Revisiting an input from Results asks for confirmation; simply viewing inputs keeps the current results, while editing requires a new calculation. Clear actions confirm when they would discard entered values. Reducing and increasing a headcount retains inactive occupant entries until Clear is used. Household removal requires confirmation. Leaving Home with meaningful inputs also requires confirmation. The draft is not restored after process termination.
 
 A hamburger menu at the upper left provides About, How to, and Exit. The app bars
 have no visible title; the banner and step headings identify the screens.
-Workflow Back and Home actions remain available. History and Settings are
-disabled and marked Coming soon; neither has persistence or a feature screen.
+Workflow Back and Home actions remain available. Save, Share, History, and Settings are unavailable; History and Settings remain marked Coming soon. No persistence or sharing feature is implemented.
 Exit uses Android activity navigation and confirms before discarding entered work.
 The Home footer places Visit GitHub and the app version near the bottom of the
 visible screen, above system insets. It scrolls with the page on shorter displays

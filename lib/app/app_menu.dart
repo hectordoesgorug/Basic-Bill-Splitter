@@ -55,16 +55,14 @@ class AppMenu extends StatelessWidget {
           context,
           'How to',
           const Text(
-            'Choose a bill type on Home, then follow five steps:\n\n'
-            '1. Bill Details — enter the amount, billing period, and total consumption for hybrid. You can change the allocation method for this bill.\n\n'
-            '2. Households — name each household and enter its occupant headcount.\n\n'
-            '3. Usage & Duration — enter optional measured usage and choose manual days, Full Period, or non-overlapping date ranges.\n\n'
-            '4. Review — check the inputs and go Back to edit.\n\n'
-            '5. Results — view reconciled household and applicable occupant amounts.\n\n'
-            'Hybrid charges measured usage, then shares remaining usage among all occupants by person-days, including metered occupants.\n\n'
-            'Person-days splits the bill by occupancy days.\n\n'
-            'Equal per household splits the bill among households without assigning individual monetary shares.\n\n'
-            'Drafts remain in memory only. Returning Home starts a fresh calculation after confirmation when work has been entered.',
+            'Choose a bill type on Home. The five tabs—Details, Households, Usage, Review, and Results—unlock as each preceding step validates. Earlier available steps can be revisited.\n\n'
+            'Details — enter the amount, billing period, and hybrid total consumption. The allocation method can be changed for this bill.\n\n'
+            'Households — name each household and set its 0–10 headcount with the stepper. Zero is selectable, but continuing requires 1–10 occupants per household. Clear resets households to one default household and occupant.\n\n'
+            'Usage — enter optional measured usage and choose manual days, Full Period, or non-overlapping date ranges. Clear resets all usage and duration inputs while preserving household and bill details.\n\n'
+            'Review — check inputs and Calculate to recompute.\n\n'
+            'Results — view reconciled household and applicable occupant amounts. Revisiting inputs asks for confirmation; editing requires calculating again. Save and Share are unavailable. Exit returns Home with discard confirmation when needed.\n\n'
+            'Hybrid charges measured usage, then shares remaining usage among all occupants by person-days, including metered occupants. Person-days splits by occupancy duration. Equal per household does not assign individual monetary shares.\n\n'
+            'Drafts remain in memory only. History and Settings are unavailable.',
           ),
         );
       case 'exit':

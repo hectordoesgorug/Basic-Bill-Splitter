@@ -30,7 +30,9 @@ class _BillWorkflowState extends State<BillWorkflow> {
   final _scroll = ScrollController();
   Map<String, String> _errors = {};
   int _step = 0;
-  int _revision = 0;
+  bool _detailsValidated = false;
+  bool _householdsValidated = false;
+  bool _usageValidated = false;
   Bill? _bill;
   BillAllocation? _allocation;
 
@@ -59,11 +61,50 @@ class _BillWorkflowState extends State<BillWorkflow> {
     });
   }
 
-  void _back() {
-    if (_step > 0) {
+  bool _canVisit(int step) {
+    if (step == 0) return true;
+    if (!_detailsValidated || _draft.validateDetails().isNotEmpty) return false;
+    if (step == 1) return true;
+    if (!_householdsValidated || _draft.validateHouseholds().isNotEmpty) {
+      return false;
+    }
+    for (final household in _draft.households) {
+      household.prepareOccupants();
+    }
+    if (step == 2) return true;
+    if (!_usageValidated || _draft.validateUsage().isNotEmpty) return false;
+    if (step == 3) return true;
+    return _allocation != null && _bill != null;
+  }
+
+  void _changed() {
+    if (_step == 0) _detailsValidated = false;
+    if (_step <= 1) _householdsValidated = false;
+    if (_step <= 2) _usageValidated = false;
+    _bill = null;
+    _allocation = null;
+  }
+
+  Future<void> _selectTab(int step) async {
+    if (!_canVisit(step)) return;
+    if (_step == 4 && step < 4) {
+      final confirmed = await _confirm(
+        'Revisit calculation?',
+        'You can review earlier inputs, but changing them will invalidate the current results. You will need to calculate again to update the totals.',
+        'Continue',
+      );
+      if (!confirmed || !mounted) return;
+    }
+    _go(step);
+  }
+
+  Future<void> _back() async {
+    if (_step == 4) {
+      await _selectTab(3);
+    } else if (_step > 0) {
       _go(_step - 1);
     } else {
-      _returnHome();
+      await _returnHome();
     }
   }
 
@@ -72,6 +113,11 @@ class _BillWorkflowState extends State<BillWorkflow> {
       0 => _draft.validateDetails(),
       1 => _draft.validateHouseholds(),
       2 => _draft.validateUsage(),
+      3 => {
+        ..._draft.validateDetails(),
+        ..._draft.validateHouseholds(),
+        ..._draft.validateUsage(),
+      },
       _ => <String, String>{},
     };
     if (errors.isNotEmpty) {
@@ -83,12 +129,15 @@ class _BillWorkflowState extends State<BillWorkflow> {
       );
       return;
     }
+    if (_step == 0) _detailsValidated = true;
     if (_step == 1) {
+      _householdsValidated = true;
       for (final household in _draft.households) {
         household.prepareOccupants();
       }
     }
-    if (_step == 2) {
+    if (_step == 2) _usageValidated = true;
+    if (_step == 3) {
       final bill = _draft.toBill();
       try {
         _allocation = const BillCalculator().calculate(
@@ -109,7 +158,11 @@ class _BillWorkflowState extends State<BillWorkflow> {
             }
           }
         }
-        setState(() => _errors = usageErrors);
+        setState(() {
+          _errors = usageErrors;
+          _usageValidated = false;
+          _step = 2;
+        });
         _scroll.animateTo(
           0,
           duration: const Duration(milliseconds: 200),
@@ -154,6 +207,60 @@ class _BillWorkflowState extends State<BillWorkflow> {
     if (!await _confirmDiscard() || !mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
     widget.onHome();
+  }
+
+  Future<void> _clearHouseholds() async {
+    final meaningful =
+        _draft.households.length != 1 ||
+        _draft.households.single.name != 'Household 1' ||
+        _draft.households.single.headcount != '1' ||
+        _draft.households.single.occupants.any(_occupantHasUsage);
+    if (meaningful &&
+        !await _confirm(
+          'Clear households?',
+          'Reset households and their occupant inputs?',
+          'Clear',
+        )) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _draft.households
+        ..clear()
+        ..add(HouseholdDraft(name: 'Household 1'));
+      _errors.clear();
+      _changed();
+    });
+  }
+
+  bool _occupantHasUsage(OccupantDraft occupant) =>
+      occupant.measured.isNotEmpty ||
+      occupant.days.isNotEmpty ||
+      occupant.mode != OccupancyMode.fullPeriod ||
+      occupant.ranges.any(
+        (range) => range.start.isNotEmpty || range.end.isNotEmpty,
+      );
+
+  Future<void> _clearUsage() async {
+    final meaningful = _draft.households.any(
+      (household) => household.occupants.any(_occupantHasUsage),
+    );
+    if (meaningful &&
+        !await _confirm(
+          'Clear usage?',
+          'Reset all occupant usage and duration inputs?',
+          'Clear',
+        )) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      for (final household in _draft.households) {
+        household.clearUsage();
+      }
+      _errors.clear();
+      _changed();
+    });
   }
 
   Widget _householdSection(int h, List<Widget> children, {Widget? action}) {
@@ -211,10 +318,11 @@ class _BillWorkflowState extends State<BillWorkflow> {
         hintText: hint,
         errorText: _errors[id],
       ),
-      onChanged: (text) {
+      onChanged: (text) => setState(() {
         update(text);
-        if (_errors.containsKey(id)) setState(() => _errors.remove(id));
-      },
+        _changed();
+        _errors.remove(id);
+      }),
     ),
   );
 
@@ -240,15 +348,12 @@ class _BillWorkflowState extends State<BillWorkflow> {
     lastDate: billing ? null : parseDate(_draft.periodEnd),
     pickerLabel: billing ? 'Choose Billing Period' : 'Choose occupancy dates',
     showManualFields: !billing,
-    onChanged: (from, to) {
+    onChanged: (from, to) => setState(() {
       update(from, to);
-      if (_errors.containsKey(startId) || _errors.containsKey(endId)) {
-        setState(() {
-          _errors.remove(startId);
-          _errors.remove(endId);
-        });
-      }
-    },
+      _changed();
+      _errors.remove(startId);
+      _errors.remove(endId);
+    }),
   );
 
   Widget _dropdown<T>(
@@ -270,7 +375,12 @@ class _BillWorkflowState extends State<BillWorkflow> {
           DropdownMenuItem(value: item, child: Text(describe(item))),
       ],
       onChanged: (item) {
-        if (item != null) setState(() => update(item));
+        if (item != null) {
+          setState(() {
+            update(item);
+            _changed();
+          });
+        }
       },
     ),
   );
@@ -356,15 +466,65 @@ class _BillWorkflowState extends State<BillWorkflow> {
             'h$h.name',
             'Household name',
             _draft.households[h].name,
-            (text) => setState(() => _draft.households[h].name = text),
+            (text) => _draft.households[h].name = text,
           ),
-          _field(
-            'h$h.headcount',
-            'Occupant headcount',
-            _draft.households[h].headcount,
-            (text) => _draft.households[h].headcount = text,
-            numeric: true,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Semantics(
+              label: 'Occupants, ${_draft.households[h].count ?? 0}',
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    key: ValueKey('h$h.headcount.decrement'),
+                    tooltip: 'Decrease occupants',
+                    onPressed: (_draft.households[h].count ?? 0) <= 0
+                        ? null
+                        : () => setState(() {
+                            final household = _draft.households[h];
+                            household.headcount = '${household.count! - 1}';
+                            _errors.remove('h$h.headcount');
+                            _changed();
+                          }),
+                    icon: const Icon(Icons.remove),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      '${_draft.households[h].count ?? 0}',
+                      key: ValueKey('h$h.headcount.value'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  IconButton(
+                    key: ValueKey('h$h.headcount.increment'),
+                    tooltip: 'Increase occupants',
+                    onPressed:
+                        (_draft.households[h].count ?? 0) >=
+                            HouseholdDraft.maxOccupants
+                        ? null
+                        : () => setState(() {
+                            final household = _draft.households[h];
+                            household.headcount =
+                                '${(household.count ?? 0) + 1}';
+                            household.prepareOccupants();
+                            _errors.remove('h$h.headcount');
+                            _changed();
+                          }),
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
+              ),
+            ),
           ),
+          if (_errors['h$h.headcount'] != null)
+            Text(
+              _errors['h$h.headcount']!,
+              key: ValueKey('h$h.headcount.error'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              textAlign: TextAlign.center,
+            ),
         ],
         action: _draft.households.length <= 1
             ? null
@@ -384,7 +544,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
                   setState(() {
                     _draft.households.remove(household);
                     _errors = {};
-                    _revision++;
+                    _changed();
                   });
                 },
               ),
@@ -395,6 +555,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
         _draft.households.add(
           HouseholdDraft(name: 'Household ${_draft.households.length + 1}'),
         );
+        _changed();
       }),
       icon: const Icon(Icons.add),
       label: const Text('Add household'),
@@ -481,7 +642,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
                     onPressed: () => setState(() {
                       occupant.ranges.removeAt(r);
                       _errors = {};
-                      _revision++;
+                      _changed();
                     }),
                   ),
               ],
@@ -500,8 +661,10 @@ class _BillWorkflowState extends State<BillWorkflow> {
           ],
           OutlinedButton.icon(
             key: ValueKey('$key.addRange'),
-            onPressed: () =>
-                setState(() => occupant.ranges.add(OccupancyRangeDraft())),
+            onPressed: () => setState(() {
+              occupant.ranges.add(OccupancyRangeDraft());
+              _changed();
+            }),
             icon: const Icon(Icons.add),
             label: const Text('Add date range'),
           ),
@@ -542,7 +705,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
   );
 
   List<Widget> _summary({required bool results}) {
-    final bill = _bill!;
+    final bill = results ? _bill! : _draft.toBill();
     return [
       _card([
         Text(
@@ -629,10 +792,50 @@ class _BillWorkflowState extends State<BillWorkflow> {
       body: SafeArea(
         child: Column(
           children: [
-            LinearProgressIndicator(value: (_step + 1) / _titles.length),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (
+                    var i = 0;
+                    i <
+                        const [
+                          'Details',
+                          'Households',
+                          'Usage',
+                          'Review',
+                          'Results',
+                        ].length;
+                    i++
+                  )
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Semantics(
+                        selected: _step == i,
+                        button: true,
+                        child: ChoiceChip(
+                          label: Text(
+                            const [
+                              'Details',
+                              'Households',
+                              'Usage',
+                              'Review',
+                              'Results',
+                            ][i],
+                          ),
+                          selected: _step == i,
+                          onSelected: _canVisit(i)
+                              ? (_) => _selectTab(i)
+                              : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Expanded(
               child: SingleChildScrollView(
-                key: ValueKey('step$_step-$_revision'),
+                key: ValueKey('step$_step'),
                 controller: _scroll,
                 padding: const EdgeInsets.all(20),
                 child: Center(
@@ -641,11 +844,6 @@ class _BillWorkflowState extends State<BillWorkflow> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Step ${_step + 1} of 5',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: 8),
                         Text(
                           _titles[_step],
                           style: Theme.of(context).textTheme.headlineMedium,
@@ -687,7 +885,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
         ),
         child: Row(
           children: [
-            if (_step > 0) ...[
+            if (_step != 4) ...[
               Expanded(
                 child: OutlinedButton(
                   key: const ValueKey('back'),
@@ -695,21 +893,49 @@ class _BillWorkflowState extends State<BillWorkflow> {
                   child: const Text('Back'),
                 ),
               ),
-              const SizedBox(width: 16),
-            ],
-            Expanded(
-              child: FilledButton(
-                key: const ValueKey('next'),
-                onPressed: _step == 4 ? _returnHome : _next,
-                child: Text(
-                  _step == 4
-                      ? 'New calculation'
-                      : _step == 3
-                      ? 'Calculate'
-                      : 'Continue',
+              const SizedBox(width: 8),
+              if (_step == 1 || _step == 2) ...[
+                Expanded(
+                  child: TextButton(
+                    key: const ValueKey('clear'),
+                    onPressed: _step == 1 ? _clearHouseholds : _clearUsage,
+                    child: const Text('Clear'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: FilledButton(
+                  key: const ValueKey('next'),
+                  onPressed: _next,
+                  child: Text(_step == 3 ? 'Calculate' : 'Next'),
                 ),
               ),
-            ),
+            ] else ...[
+              Expanded(
+                child: OutlinedButton(
+                  key: const ValueKey('saveDisabled'),
+                  onPressed: null,
+                  child: const Text('Save'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  key: const ValueKey('shareDisabled'),
+                  onPressed: null,
+                  child: const Text('Share'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  key: const ValueKey('exit'),
+                  onPressed: _returnHome,
+                  child: const Text('Exit'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

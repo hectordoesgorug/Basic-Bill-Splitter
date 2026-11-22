@@ -125,20 +125,34 @@ class HouseholdDraft {
   String headcount = '1';
   final occupants = [OccupantDraft()];
 
-  /// A form guard against accidentally generating thousands of input rows.
-  static const maxOccupants = 100;
+  /// UI guard; the calculation engine has no corresponding limit.
+  static const maxOccupants = 10;
 
   int? get count {
     if (!RegExp(r'^\d+$').hasMatch(headcount.trim())) return null;
     final value = int.tryParse(headcount.trim());
-    return value != null && value > 0 && value <= maxOccupants ? value : null;
+    return value != null && value >= 0 && value <= maxOccupants ? value : null;
   }
 
   void prepareOccupants() {
-    while (occupants.length < count!) {
+    final activeCount = count;
+    if (activeCount == null || activeCount == 0) return;
+    while (occupants.length < activeCount) {
       occupants.add(OccupantDraft());
     }
     // Retain inactive entries if the headcount is reduced and later restored.
+  }
+
+  void clearUsage() {
+    for (final occupant in occupants) {
+      occupant
+        ..measured = ''
+        ..days = ''
+        ..mode = OccupancyMode.fullPeriod;
+      occupant.ranges
+        ..clear()
+        ..add(OccupancyRangeDraft());
+    }
   }
 }
 
@@ -228,7 +242,8 @@ class BillDraft {
       if (households[h].name.trim().isEmpty) {
         errors['h$h.name'] = 'Enter a household name.';
       }
-      if (households[h].count == null) {
+      final count = households[h].count;
+      if (count == null || count < 1) {
         errors['h$h.headcount'] =
             'Enter a whole number from 1 to ${HouseholdDraft.maxOccupants}.';
       }
@@ -252,7 +267,7 @@ class BillDraft {
     final end = parseDate(periodEnd)!;
     for (var h = 0; h < households.length; h++) {
       final household = households[h];
-      for (var o = 0; o < household.count!; o++) {
+      for (var o = 0; o < (household.count ?? 0); o++) {
         final occupant = household.occupants[o];
         final key = 'h$h.o$o';
         if (occupant.measured.trim().isNotEmpty &&
