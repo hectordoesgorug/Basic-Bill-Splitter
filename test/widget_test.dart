@@ -505,6 +505,7 @@ void main() {
     ]);
     await pumpDraft(tester, draft);
     await next(tester);
+    expect(find.text('Number of Occupants'), findsNWidgets(3));
     final colors = {
       for (final household in draft.households)
         household: tester
@@ -922,13 +923,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('flat tabs and occupant label fit a normal portrait screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpDraft(tester, validDraft());
+    for (final label in [
+      'Details',
+      'Households',
+      'Usage',
+      'Review',
+      'Results',
+    ]) {
+      expect(find.byKey(ValueKey('tab-$label')), findsOneWidget);
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.text('Number of Occupants'), findsNothing);
+    final primary = Theme.of(
+      tester.element(find.byKey(const ValueKey('tab-indicator-Details'))),
+    ).colorScheme.primary;
+    expect(
+      tester
+          .widget<Container>(
+            find.byKey(const ValueKey('tab-indicator-Details')),
+          )
+          .color,
+      primary,
+    );
+    expect(
+      tester
+          .widget<Container>(
+            find.byKey(const ValueKey('tab-indicator-Results')),
+          )
+          .color,
+      Colors.transparent,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'tabs unlock after validation and headcount uses bounded stepper',
     (tester) async {
       await pumpDraft(tester, validDraft());
-      final reviewTab = find.widgetWithText(ChoiceChip, 'Review');
-      expect(tester.widget<ChoiceChip>(reviewTab).onSelected, isNull);
+      final reviewSemantics = tester
+          .getSemantics(find.byKey(const ValueKey('tab-Review')))
+          .getSemanticsData();
+      expect(reviewSemantics.label, 'Review');
+      await tester.tap(find.byKey(const ValueKey('tab-Review')));
+      await tester.pumpAndSettle();
+      expect(find.text('Bill Details'), findsOneWidget);
       await next(tester);
+      expect(find.text('Number of Occupants'), findsOneWidget);
       expect(find.byKey(const ValueKey('h0.headcount.value')), findsOneWidget);
       expect(find.text('1').last, findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('h0.headcount.decrement')));
@@ -940,7 +988,7 @@ void main() {
       await tester.pump();
       await next(tester);
       expect(find.text('Usage & Duration'), findsOneWidget);
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Households'));
+      await tester.tap(find.byKey(const ValueKey('tab-Households')));
       await tester.pumpAndSettle();
       for (var i = 0; i < 9; i++) {
         await tester.tap(find.byKey(const ValueKey('h0.headcount.increment')));
@@ -1062,15 +1110,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Details'));
+      await tester.tap(find.byKey(const ValueKey('tab-Details')));
       await tester.pumpAndSettle();
       await enter(tester, 'amount', '2000.00');
-      expect(
-        tester
-            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Results'))
-            .onSelected,
-        isNull,
-      );
+      await tester.tap(find.byKey(const ValueKey('tab-Results')));
+      await tester.pumpAndSettle();
+      expect(find.text('Bill Details'), findsOneWidget);
       await next(tester);
       await next(tester);
       await next(tester);

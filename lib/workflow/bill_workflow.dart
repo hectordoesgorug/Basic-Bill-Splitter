@@ -396,6 +396,97 @@ class _BillWorkflowState extends State<BillWorkflow> {
     ),
   );
 
+  static const _tabLabels = [
+    'Details',
+    'Households',
+    'Usage',
+    'Review',
+    'Results',
+  ];
+
+  Widget _workflowTabs() => LayoutBuilder(
+    builder: (context, constraints) {
+      final colors = Theme.of(context).colorScheme;
+      final textScaler = MediaQuery.textScalerOf(context);
+      final scrollTabs =
+          constraints.maxWidth < 360 || textScaler.scale(12) > 15;
+      final tabWidth = textScaler.scale(12) > 15
+          ? textScaler.scale(12) * 8.5
+          : 80.0;
+      final tabs = [
+        for (var i = 0; i < _tabLabels.length; i++) _workflowTab(i, colors),
+      ];
+      return Material(
+        color: colors.surface,
+        child: scrollTabs
+            ? SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final tab in tabs)
+                      SizedBox(width: tabWidth, child: tab),
+                  ],
+                ),
+              )
+            : Row(children: [for (final tab in tabs) Expanded(child: tab)]),
+      );
+    },
+  );
+
+  Widget _workflowTab(int index, ColorScheme colors) {
+    final selected = _step == index;
+    final enabled = _canVisit(index);
+    final label = _tabLabels[index];
+    return Semantics(
+      key: ValueKey('tab-$label'),
+      label: label,
+      selected: selected,
+      enabled: enabled,
+      button: true,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: enabled ? () => _selectTab(index) : null,
+        child: SizedBox(
+          height: 48,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: !enabled
+                            ? colors.onSurface.withAlpha(100)
+                            : selected
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                key: ValueKey('tab-indicator-$label'),
+                height: 3,
+                width: double.infinity,
+                color: selected ? colors.primary : Colors.transparent,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _heading(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: Text(text, style: Theme.of(context).textTheme.titleLarge),
@@ -470,52 +561,64 @@ class _BillWorkflowState extends State<BillWorkflow> {
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: Semantics(
-              label: 'Occupants, ${_draft.households[h].count ?? 0}',
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    key: ValueKey('h$h.headcount.decrement'),
-                    tooltip: 'Decrease occupants',
-                    onPressed: (_draft.households[h].count ?? 0) <= 0
-                        ? null
-                        : () => setState(() {
-                            final household = _draft.households[h];
-                            household.headcount = '${household.count! - 1}';
-                            _errors.remove('h$h.headcount');
-                            _changed();
-                          }),
-                    icon: const Icon(Icons.remove),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Number of Occupants',
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
-                  SizedBox(
-                    width: 48,
-                    child: Text(
-                      '${_draft.households[h].count ?? 0}',
-                      key: ValueKey('h$h.headcount.value'),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                ),
+                Semantics(
+                  label: 'Occupants, ${_draft.households[h].count ?? 0}',
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        key: ValueKey('h$h.headcount.decrement'),
+                        tooltip: 'Decrease occupants',
+                        onPressed: (_draft.households[h].count ?? 0) <= 0
+                            ? null
+                            : () => setState(() {
+                                final household = _draft.households[h];
+                                household.headcount = '${household.count! - 1}';
+                                _errors.remove('h$h.headcount');
+                                _changed();
+                              }),
+                        icon: const Icon(Icons.remove),
+                      ),
+                      SizedBox(
+                        width: 48,
+                        child: Text(
+                          '${_draft.households[h].count ?? 0}',
+                          key: ValueKey('h$h.headcount.value'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        key: ValueKey('h$h.headcount.increment'),
+                        tooltip: 'Increase occupants',
+                        onPressed:
+                            (_draft.households[h].count ?? 0) >=
+                                HouseholdDraft.maxOccupants
+                            ? null
+                            : () => setState(() {
+                                final household = _draft.households[h];
+                                household.headcount =
+                                    '${(household.count ?? 0) + 1}';
+                                household.prepareOccupants();
+                                _errors.remove('h$h.headcount');
+                                _changed();
+                              }),
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    key: ValueKey('h$h.headcount.increment'),
-                    tooltip: 'Increase occupants',
-                    onPressed:
-                        (_draft.households[h].count ?? 0) >=
-                            HouseholdDraft.maxOccupants
-                        ? null
-                        : () => setState(() {
-                            final household = _draft.households[h];
-                            household.headcount =
-                                '${(household.count ?? 0) + 1}';
-                            household.prepareOccupants();
-                            _errors.remove('h$h.headcount');
-                            _changed();
-                          }),
-                    icon: const Icon(Icons.add),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           if (_errors['h$h.headcount'] != null)
@@ -792,47 +895,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
       body: SafeArea(
         child: Column(
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (
-                    var i = 0;
-                    i <
-                        const [
-                          'Details',
-                          'Households',
-                          'Usage',
-                          'Review',
-                          'Results',
-                        ].length;
-                    i++
-                  )
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Semantics(
-                        selected: _step == i,
-                        button: true,
-                        child: ChoiceChip(
-                          label: Text(
-                            const [
-                              'Details',
-                              'Households',
-                              'Usage',
-                              'Review',
-                              'Results',
-                            ][i],
-                          ),
-                          selected: _step == i,
-                          onSelected: _canVisit(i)
-                              ? (_) => _selectTab(i)
-                              : null,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            _workflowTabs(),
             Expanded(
               child: SingleChildScrollView(
                 key: ValueKey('step$_step'),
