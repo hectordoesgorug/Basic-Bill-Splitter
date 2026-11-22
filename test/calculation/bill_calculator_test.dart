@@ -282,6 +282,114 @@ void main() {
     });
   });
 
+  group('occupant allocations', () {
+    test('hybrid includes both measured and residual usage per occupant', () {
+      final input = bill(
+        [
+          home([person(30, 20), person(10)]),
+          home([person(20)]),
+        ],
+        consumption: 100,
+        cents: 100000,
+      );
+      final result = calculator.calculate(
+        input,
+        method: AllocationMethod.hybrid,
+      );
+      expect(result.households[0].occupants!.map((o) => o.amountCents), [
+        60000,
+        13333,
+      ]);
+      expect(result.households[1].occupants!.single.amountCents, 26667);
+    });
+
+    test('rounds occupants within reconciled households, with stable ties', () {
+      final input = bill(
+        [
+          home([person(1), person(1)]),
+          home([person(1)]),
+        ],
+        consumption: 3,
+        cents: 2,
+      );
+      for (final method in [
+        AllocationMethod.hybrid,
+        AllocationMethod.personDays,
+      ]) {
+        final result = calculator.calculate(input, method: method);
+        expect(result.households.map((h) => h.amountCents), [1, 1]);
+        expect(result.households[0].occupants!.map((o) => o.amountCents), [
+          1,
+          0,
+        ]);
+        expect(result.households[1].occupants!.single.amountCents, 1);
+        expect(
+          result.households[0].occupants!.first.occupant,
+          same(input.households[0].occupants.first),
+        );
+        expect(
+          () => result.households[0].occupants!.clear(),
+          throwsUnsupportedError,
+        );
+      }
+    });
+
+    test('zero usage households do not divide by zero', () {
+      final input = bill([
+        home([person(1, 100)]),
+        home([person(1), person(1, 0)]),
+      ], consumption: 100);
+      final result = calculator.calculate(
+        input,
+        method: AllocationMethod.hybrid,
+      );
+      expect(result.households.map((h) => h.amountCents), [10000, 0]);
+      expect(result.households[1].occupants!.map((o) => o.amountCents), [0, 0]);
+    });
+
+    test('equal households have no invented occupant allocations', () {
+      final result = calculator.calculate(
+        bill([
+          home([person(1), person(2)]),
+        ]),
+        method: AllocationMethod.equalPerHousehold,
+      );
+      expect(result.households.single.occupants, isNull);
+    });
+
+    test('varied occupant, household and bill totals reconcile', () {
+      for (var n = 1; n <= 8; n++) {
+        for (final cents in [0, 1, 5, 101, 9007199254740991]) {
+          final input = bill(
+            [
+              for (var h = 1; h <= n; h++)
+                home([person(h, h / 10), person(n + 1 - h), person(1, 0)]),
+            ],
+            cents: cents,
+            consumption: 100,
+          );
+          for (final method in [
+            AllocationMethod.hybrid,
+            AllocationMethod.personDays,
+          ]) {
+            final result = calculator.calculate(input, method: method);
+            for (final household in result.households) {
+              expect(
+                household.occupants!.fold(0, (sum, o) => sum + o.amountCents),
+                household.amountCents,
+              );
+              expect(
+                household.occupants!.every((o) => o.amountCents >= 0),
+                isTrue,
+              );
+            }
+            expect(result.totalAmountCents, cents);
+          }
+        }
+      }
+    });
+  });
+
   group('validation', () {
     for (final method in AllocationMethod.values) {
       group(method.name, () {

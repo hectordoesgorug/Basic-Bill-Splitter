@@ -36,14 +36,25 @@ class Bill {
   final List<Household> households;
 }
 
+class OccupantAllocation {
+  const OccupantAllocation({required this.occupant, required this.amountCents});
+
+  final Occupant occupant;
+  final int amountCents;
+}
+
 class HouseholdAllocation {
-  const HouseholdAllocation({
+  HouseholdAllocation({
     required this.household,
     required this.amountCents,
-  });
+    List<OccupantAllocation>? occupants,
+  }) : occupants = occupants == null ? null : List.unmodifiable(occupants);
 
   final Household household;
   final int amountCents;
+
+  /// Null for equal-per-household: that policy defines no individual split.
+  final List<OccupantAllocation>? occupants;
 }
 
 class BillAllocation {

@@ -32,13 +32,13 @@ class BillCalculator {
 
     final days = <BigInt>[];
     final measured = <double>[];
-    final measuredCounts = <int>[];
+
     for (final household in bill.households) {
       if (household.occupants.isEmpty) {
         throw ArgumentError('Each household needs at least one occupant');
       }
       var householdDays = BigInt.zero;
-      var measuredCount = 0;
+
       for (final occupant in household.occupants) {
         if (occupant.occupancyDays <= 0) {
           throw ArgumentError.value(
@@ -52,11 +52,9 @@ class BillCalculator {
         if (usage != null) {
           _validateConsumption(usage, 'measuredConsumption');
           measured.add(usage);
-          measuredCount++;
         }
       }
       days.add(householdDays);
-      measuredCounts.add(measuredCount);
     }
 
     final units = _decimalUnits([consumption ?? 0, ...measured]);
@@ -66,6 +64,7 @@ class BillCalculator {
       throw ArgumentError('Measured consumption exceeds total consumption');
     }
 
+    final occupantWeights = <List<BigInt>>[];
     final List<BigInt> weights;
     switch (method) {
       case AllocationMethod.hybrid:
@@ -74,16 +73,29 @@ class BillCalculator {
         var offset = 1;
         weights = [];
         for (var h = 0; h < bill.households.length; h++) {
-          var householdMeasured = BigInt.zero;
-          for (var i = 0; i < measuredCounts[h]; i++) {
-            householdMeasured += units[offset++];
+          final individualWeights = <BigInt>[];
+          for (final occupant in bill.households[h].occupants) {
+            final usage = occupant.measuredConsumption == null
+                ? BigInt.zero
+                : units[offset++];
+            // Every occupant, including metered occupants, shares the residual.
+            individualWeights.add(
+              usage * totalDays +
+                  remaining * BigInt.from(occupant.occupancyDays),
+            );
           }
-          // Exact equivalent of rate * (measured + residual person-days).
-          // Metered occupants remain in days[h] and totalDays.
-          weights.add(householdMeasured * totalDays + remaining * days[h]);
+          occupantWeights.add(individualWeights);
+          weights.add(individualWeights.fold(BigInt.zero, (a, b) => a + b));
         }
       case AllocationMethod.personDays:
         weights = days;
+        occupantWeights.addAll([
+          for (final household in bill.households)
+            [
+              for (final occupant in household.occupants)
+                BigInt.from(occupant.occupancyDays),
+            ],
+        ]);
       case AllocationMethod.equalPerHousehold:
         weights = List.filled(bill.households.length, BigInt.one);
     }
@@ -96,10 +108,35 @@ class BillCalculator {
           HouseholdAllocation(
             household: bill.households[h],
             amountCents: cents[h],
+            occupants: method == AllocationMethod.equalPerHousehold
+                ? null
+                : _occupantAllocations(
+                    bill.households[h],
+                    cents[h],
+                    occupantWeights[h],
+                  ),
           ),
       ],
     );
   }
+}
+
+List<OccupantAllocation> _occupantAllocations(
+  Household household,
+  int cents,
+  List<BigInt> weights,
+) {
+  // A fully measured bill can leave a household with zero usage and zero cents.
+  final shares = weights.every((weight) => weight == BigInt.zero)
+      ? List.filled(weights.length, 0)
+      : _allocateCents(cents, weights);
+  return [
+    for (var i = 0; i < household.occupants.length; i++)
+      OccupantAllocation(
+        occupant: household.occupants[i],
+        amountCents: shares[i],
+      ),
+  ];
 }
 
 void _validateConsumption(double value, String name) {

@@ -1,7 +1,45 @@
 # Basic Bill Splitter
 
-A Flutter residential expense calculator. Milestone 1.0 provides a pure-Dart,
-bill-by-bill calculation engine; the starter counter UI is unchanged.
+A Material 3 Flutter app for splitting one residential bill at a time. The
+interface uses the pure-Dart calculation engine and keeps a single in-memory
+draft while navigating between steps.
+
+## Calculation workflow
+
+1. **Bill Details** — select a category and allocation method, enter the PHP
+   amount and inclusive billing period, and supply total consumption for hybrid.
+2. **Households** — enter household names and participating occupant headcounts.
+   The form accepts 1–100 occupants per household to guard against accidental
+   generation of thousands of fields. This is a UI limit, not an engine limit.
+3. **Usage & Duration** — optionally enter each occupant's measured usage.
+   Select manual days, Full Period, or one or more occupancy date ranges.
+   Manual days must be within the bill period's length. Date ranges must lie
+   within the bill period and must not overlap for the same occupant; both
+   endpoints count, so sharing an endpoint is an overlap.
+4. **Review** — inspect the bill, household and occupant inputs.
+5. **Results** — view PHP household totals and, for hybrid/person-days,
+   reconciled occupant amounts. Equal-per-household shows occupant inputs
+   without assigning individual monetary shares.
+
+Category defaults are Electricity and Water → hybrid; Internet, Rent and LPG →
+person-days; Miscellaneous → equal per household. Selecting a category applies
+its default. The method can then be overridden for this bill. Measured inputs
+do not affect the two non-hybrid methods.
+
+Amounts accept plain decimal digits with up to two decimal places (for example
+`1234.56`) and convert directly to integer cents. Results use PHP formatting,
+such as `₱1,234.56`. Dates accept `YYYY-MM-DD` or the calendar picker.
+Field errors prevent advancing until corrected; aggregate measured usage is
+validated by the engine before Review.
+
+Back buttons and Android system Back return to the previous step and preserve
+inputs. Reducing and then increasing a headcount retains the inactive occupant
+entries within this draft. Household removal and starting a new calculation
+require confirmation. The draft is not restored after process termination.
+
+The entry point is `lib/main.dart`. `lib/workflow/bill_workflow.dart` renders
+the steps; `lib/workflow/bill_draft.dart` owns transient inputs, parsing and
+form validation. Widgets do not implement allocation formulas.
 
 ## Calculation engine
 
@@ -56,6 +94,15 @@ remainders; ties favor household input order. Returned allocations preserve
 that order and the original household objects, so duplicate display labels
 remain distinct. Household amounts always sum to the original bill.
 
+For hybrid and person-days, each `HouseholdAllocation.occupants` contains
+immutable `OccupantAllocation` results in occupant input order. Once household
+cents are reconciled, the engine distributes those cents within each household
+using the same exact occupant weights and largest-remainder rule, with ties
+favoring occupant input order. Occupant cents sum to household cents, including
+zero-usage households and bills smaller than the number of occupants.
+For equal-per-household, `occupants` is null because that method defines no
+individual monetary allocation.
+
 ### Example
 
 ```dart
@@ -89,17 +136,26 @@ bill inputs without coupling calculation to the UI or persistence.
 ## Verification
 
 ```text
-dart format lib/calculation test/calculation
+dart format lib test
 flutter analyze
 flutter test
 ```
 
-Calculation unit tests are in `test/calculation/bill_calculator_test.dart`.
-The existing starter widget smoke test remains in place.
+Calculation and occupant reconciliation tests are in
+`test/calculation/bill_calculator_test.dart`. Draft parsing, duration and
+validation tests are in `test/workflow/bill_draft_test.dart`.
+`test/widget_test.dart` covers form validation, category defaults, navigation,
+engine integration, date ranges, reset confirmation and a narrow layout with
+larger text.
+
+Automated widget tests do not establish physical-device keyboard, system-bar,
+rotation, or accessibility behavior. Device checks should be reported
+separately from the automated suite.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+Install the Flutter SDK, resolve dependencies with `flutter pub get`, then run
+`flutter run` on a connected Android device.
 
 A few resources to get you started if this is your first Flutter project:
 
