@@ -162,9 +162,14 @@ final result = const BillCalculator().calculate(
 // A: 8000 cents; B: 2000 cents; total: 10000 cents.
 ```
 
-There are no saved profiles, membership records, payments, storage, backups, or
-exports. Future itemized billing and expense categories can supply separate
-bill inputs without coupling calculation to the UI or persistence.
+The app does not save household profiles, membership records, or payment tracking.
+Completed calculations can be saved on Android; working drafts remain in memory.
+History, backups, exports, and itemized billing are not implemented.
+
+## Technical documentation
+
+- [Architecture](docs/ARCHITECTURE.md) describes application layers, component responsibilities, and data flow.
+- [Data storage](docs/DATA_STORAGE.md) documents saved records, persistence, and billing-period rules.
 
 ## Verification
 
