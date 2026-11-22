@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-import 'workflow/bill_workflow.dart';
+import 'app/home_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -9,7 +9,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Basic Bill Splitter',
+    title: 'Splitter',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,
@@ -18,6 +18,6 @@ class MyApp extends StatelessWidget {
         border: OutlineInputBorder(),
       ),
     ),
-    home: const BillWorkflow(),
+    home: const HomeScreen(),
   );
 }

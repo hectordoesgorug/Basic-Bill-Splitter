@@ -1,0 +1,28 @@
+import 'package:flutter/services.dart';
+
+/// Android facilities used by the app shell, without additional packages.
+abstract final class AppPlatform {
+  static const channel = MethodChannel('basic_bill_splitter/app');
+
+  static Future<String?> version() async {
+    try {
+      return await channel.invokeMethod<String>('getVersion');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  static Future<bool> openRepository() async {
+    try {
+      return await channel.invokeMethod<bool>('openRepository') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  static Future<void> exit() => SystemNavigator.pop();
+}

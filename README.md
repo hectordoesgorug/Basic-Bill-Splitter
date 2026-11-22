@@ -4,12 +4,19 @@
 
 A Material 3 Flutter app for splitting one residential bill at a time. The
 interface uses the pure-Dart calculation engine and keeps a single in-memory
-draft while navigating between steps.
+draft while navigating between steps. Android is the primary target. The launcher
+and app bar use the short name **Splitter**; the full product name remains
+Basic Bill Splitter.
 
 ## Calculation workflow
 
-1. **Bill Details** — select a category and allocation method, enter the PHP
-   amount and inclusive billing period, and supply total consumption for hybrid.
+Start on Home, which displays the project banner and six bill buttons:
+Electricity, Water, Internet, Rent, LPG, and Misc. Each button starts a new draft
+with the category's default allocation method.
+
+1. **Bill Details** — check the selected category, choose the allocation method,
+   enter the PHP amount and inclusive billing period, and supply total consumption
+   for hybrid.
 2. **Households** — enter household names and participating occupant headcounts.
    The form accepts 1–100 occupants per household to guard against accidental
    generation of thousands of fields. This is a UI limit, not an engine limit.
@@ -36,17 +43,39 @@ format; headcounts and occupancy-day counts remain integers. Display rounding
 never changes the original entry text, calculator inputs, weights, or
 intermediate precision.
 Reusable presentation helpers are in `lib/workflow/bill_draft.dart`.
-Dates accept `YYYY-MM-DD` or the calendar picker. Field errors prevent advancing
-until corrected; aggregate measured usage is validated by the engine before Review.
+Dates accept manual `YYYY-MM-DD` entry or a single start/end date-range calendar.
+Each billing period and individual occupancy range has its own picker. Confirming
+updates the pair; cancelling preserves the entered text. Occupancy calendars are
+limited to the billing period, and multiple separate ranges remain supported.
+Field errors prevent advancing until corrected; aggregate measured usage is
+validated by the engine before Review.
+
+Households have consistent accent borders across Households, Usage & Duration,
+Review, and Results. Prominent names and nested occupant sections identify each
+group without relying on color alone. Accents remain assigned to the same
+household when other households are removed or added.
 
 Back buttons and Android system Back return to the previous step and preserve
-inputs. Reducing and then increasing a headcount retains the inactive occupant
-entries within this draft. Household removal and starting a new calculation
-require confirmation. The draft is not restored after process termination.
+inputs. Back from Bill Details returns Home. The Home button and New calculation
+from Results also return Home for category selection. Leaving meaningful inputs
+requires discard confirmation; cancelling keeps the draft. Reducing and then
+increasing a headcount retains the inactive occupant entries within this draft.
+Household removal requires confirmation. The draft is not restored after process
+termination.
 
-The entry point is `lib/main.dart`. `lib/workflow/bill_workflow.dart` renders
-the steps; `lib/workflow/bill_draft.dart` owns transient inputs, parsing and
-form validation. Widgets do not implement allocation formulas.
+The upper-right menu provides About, How to, and Exit. History and Settings are
+disabled and marked Coming soon; neither has persistence or a feature screen.
+Exit uses Android activity navigation and confirms before discarding entered work.
+Home includes Visit GitHub, which opens the repository in an external browser.
+An Android platform channel handles that link and reads the installed package
+version for Home and About, keeping the displayed version consistent with the
+Flutter build metadata. No additional dependency or permission is needed.
+
+The entry point is `lib/main.dart`. `lib/app/` contains Home, the shared menu,
+and the Android platform-channel wrapper. `lib/workflow/bill_workflow.dart`
+renders the steps; `lib/workflow/bill_draft.dart` owns transient inputs, parsing
+and form validation. Shared date-range fields and household sections live
+alongside the workflow. Widgets do not implement allocation formulas.
 
 ## Calculation engine
 
@@ -146,14 +175,20 @@ bill inputs without coupling calculation to the UI or persistence.
 dart format lib test
 flutter analyze
 flutter test
+flutter build apk --debug
+git diff --check
 ```
 
 Calculation and occupant reconciliation tests are in
 `test/calculation/bill_calculator_test.dart`. Draft parsing, duration and
 validation tests are in `test/workflow/bill_draft_test.dart`.
-`test/widget_test.dart` covers form validation, category defaults, navigation,
-engine integration, date ranges, reset confirmation and a narrow layout with
-larger text.
+`test/widget_test.dart` covers Home category defaults, method overrides, menus,
+native-channel calls, discard confirmation, navigation, form validation,
+engine integration, household accent stability, and narrow layouts with larger
+text in light and dark themes. `test/workflow/date_range_fields_test.dart`
+covers paired calendar selection, editing, cancellation, and manual input.
+Native-channel mocks verify Flutter calls and error presentation; they do not
+prove that a physical browser opens or an Android activity exits correctly.
 
 Automated widget tests do not establish physical-device keyboard, system-bar,
 rotation, or accessibility behavior. Device checks should be reported

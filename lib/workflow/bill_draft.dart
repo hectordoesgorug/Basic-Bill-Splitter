@@ -148,6 +148,8 @@ class BillDraft {
     final now = today ?? DateTime.now();
     periodStart = dateText(DateTime(now.year, now.month));
     periodEnd = dateText(DateTime(now.year, now.month + 1, 0));
+    _initialStart = periodStart;
+    _initialEnd = periodEnd;
   }
 
   BillCategory category = BillCategory.electricity;
@@ -156,7 +158,34 @@ class BillDraft {
   late String periodStart;
   late String periodEnd;
   String consumption = '';
+  late final String _initialStart;
+  late final String _initialEnd;
   final households = [HouseholdDraft(name: 'Household 1')];
+
+  /// Automatic defaults and category selection alone are not entered work.
+  bool get hasMeaningfulInputs =>
+      amount.trim().isNotEmpty ||
+      consumption.trim().isNotEmpty ||
+      method != category.defaultMethod ||
+      periodStart != _initialStart ||
+      periodEnd != _initialEnd ||
+      households.length != 1 ||
+      households.any(
+        (household) =>
+            household.name != 'Household 1' ||
+            household.headcount.trim() != '1' ||
+            household.occupants.any(
+              (occupant) =>
+                  occupant.measured.trim().isNotEmpty ||
+                  occupant.days.trim().isNotEmpty ||
+                  occupant.mode != OccupancyMode.fullPeriod ||
+                  occupant.ranges.any(
+                    (range) =>
+                        range.start.trim().isNotEmpty ||
+                        range.end.trim().isNotEmpty,
+                  ),
+            ),
+      );
 
   int get periodDays =>
       inclusiveDays(parseDate(periodStart)!, parseDate(periodEnd)!);

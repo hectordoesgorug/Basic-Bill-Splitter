@@ -2,19 +2,31 @@ import 'package:material_ui/material_ui.dart';
 
 import '../calculation/bill_calculator.dart';
 import '../calculation/bill_models.dart';
+import '../app/app_menu.dart';
 import 'bill_draft.dart';
+import 'date_range_fields.dart';
+import 'household_section.dart';
 
 class BillWorkflow extends StatefulWidget {
-  const BillWorkflow({super.key, this.draft});
+  const BillWorkflow({
+    super.key,
+    required this.draft,
+    required this.onHome,
+    required this.version,
+  });
 
-  final BillDraft? draft;
+  final BillDraft draft;
+  final VoidCallback onHome;
+  final Future<String?> version;
 
   @override
   State<BillWorkflow> createState() => _BillWorkflowState();
 }
 
 class _BillWorkflowState extends State<BillWorkflow> {
-  late BillDraft _draft = widget.draft ?? BillDraft();
+  late final BillDraft _draft = widget.draft;
+  final _accentIndices = <HouseholdDraft, int>{};
+  int _nextAccent = 0;
   final _scroll = ScrollController();
   Map<String, String> _errors = {};
   int _step = 0;
@@ -48,7 +60,11 @@ class _BillWorkflowState extends State<BillWorkflow> {
   }
 
   void _back() {
-    if (_step > 0) _go(_step - 1);
+    if (_step > 0) {
+      _go(_step - 1);
+    } else {
+      _returnHome();
+    }
   }
 
   void _next() {
@@ -125,22 +141,51 @@ class _BillWorkflowState extends State<BillWorkflow> {
       ) ??
       false;
 
-  Future<void> _newCalculation() async {
-    if (!await _confirm(
-      'Start a new calculation?',
-      'This clears the current draft and results.',
-      'Start new',
-    )) {
-      return;
-    }
-    if (!mounted) return;
-    setState(() {
-      _draft = BillDraft();
-      _bill = null;
-      _allocation = null;
-      _revision++;
-    });
-    _go(0);
+  Future<bool> _confirmDiscard() async {
+    if (!_draft.hasMeaningfulInputs) return true;
+    return _confirm(
+      'Discard this calculation?',
+      'Leave this calculation and discard its unsaved inputs and results?',
+      'Discard',
+    );
+  }
+
+  Future<void> _returnHome() async {
+    if (!await _confirmDiscard() || !mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    widget.onHome();
+  }
+
+  Widget _householdSection(int h, List<Widget> children, {Widget? action}) {
+    final household = _draft.households[h];
+    final index = _accentIndices.putIfAbsent(household, () => _nextAccent++);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final palette = dark
+        ? [
+            Colors.teal.shade300,
+            Colors.blue.shade300,
+            Colors.purple.shade300,
+            Colors.orange.shade300,
+            Colors.pink.shade300,
+            Colors.indigo.shade300,
+          ]
+        : [
+            Colors.teal.shade700,
+            Colors.blue.shade700,
+            Colors.purple.shade700,
+            Colors.orange.shade800,
+            Colors.pink.shade700,
+            Colors.indigo.shade700,
+          ];
+    return HouseholdSection(
+      key: ObjectKey(household),
+      name: household.name.trim().isEmpty
+          ? 'Household ${h + 1}'
+          : household.name.trim(),
+      accent: palette[index % palette.length],
+      action: action,
+      children: children,
+    );
   }
 
   Widget _field(
@@ -173,23 +218,36 @@ class _BillWorkflowState extends State<BillWorkflow> {
     ),
   );
 
-  Widget _date(
+  Widget _range(
     String id,
-    String label,
-    String value,
-    ValueChanged<String> update,
-  ) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: _DateField(
-      key: ValueKey(id),
-      label: label,
-      value: value,
-      error: _errors[id],
-      onChanged: (text) {
-        update(text);
-        if (_errors.containsKey(id)) setState(() => _errors.remove(id));
-      },
-    ),
+    String startId,
+    String endId,
+    String start,
+    String end,
+    void Function(String start, String end) update, {
+    bool billing = false,
+  }) => DateRangeFields(
+    id: id,
+    startId: startId,
+    endId: endId,
+    start: start,
+    end: end,
+    startLabel: billing ? 'Period start' : 'Range start',
+    endLabel: billing ? 'Period end' : 'Range end',
+    startError: _errors[startId],
+    endError: _errors[endId],
+    firstDate: billing ? null : parseDate(_draft.periodStart),
+    lastDate: billing ? null : parseDate(_draft.periodEnd),
+    pickerLabel: billing ? 'Choose billing period' : 'Choose occupancy dates',
+    onChanged: (from, to) {
+      update(from, to);
+      if (_errors.containsKey(startId) || _errors.containsKey(endId)) {
+        setState(() {
+          _errors.remove(startId);
+          _errors.remove(endId);
+        });
+      }
+    },
   );
 
   Widget _dropdown<T>(
@@ -233,25 +291,15 @@ class _BillWorkflowState extends State<BillWorkflow> {
   );
 
   List<Widget> _details() => [
+    _heading(_draft.category.label),
     const Padding(
       padding: EdgeInsets.only(bottom: 24),
       child: Text(
-        'Split one residential bill. Your draft stays here while you move between steps; it is not saved when the app closes.',
+        'Your draft stays here while you move between steps; it is not saved when the app closes.',
       ),
     ),
     _dropdown(
-      'category',
-      'Category',
-      _draft.category,
-      BillCategory.values,
-      (category) => category.label,
-      (category) {
-        _draft.selectCategory(category);
-        _revision++;
-      },
-    ),
-    _dropdown(
-      'method-${_draft.category.name}',
+      'method',
       'Allocation method',
       _draft.method,
       AllocationMethod.values,
@@ -266,17 +314,17 @@ class _BillWorkflowState extends State<BillWorkflow> {
       numeric: true,
       hint: '1234.56',
     ),
-    _date(
+    _range(
+      'period',
       'periodStart',
-      'Period start',
-      _draft.periodStart,
-      (text) => _draft.periodStart = text,
-    ),
-    _date(
       'periodEnd',
-      'Period end',
+      _draft.periodStart,
       _draft.periodEnd,
-      (text) => _draft.periodEnd = text,
+      (start, end) {
+        _draft.periodStart = start;
+        _draft.periodEnd = end;
+      },
+      billing: true,
     ),
     if (_draft.method == AllocationMethod.hybrid) ...[
       _field(
@@ -300,12 +348,26 @@ class _BillWorkflowState extends State<BillWorkflow> {
       ),
     ),
     for (var h = 0; h < _draft.households.length; h++)
-      _card([
-        Row(
-          children: [
-            Expanded(child: _heading('Household ${h + 1}')),
-            if (_draft.households.length > 1)
-              IconButton(
+      _householdSection(
+        h,
+        [
+          _field(
+            'h$h.name',
+            'Household name',
+            _draft.households[h].name,
+            (text) => setState(() => _draft.households[h].name = text),
+          ),
+          _field(
+            'h$h.headcount',
+            'Occupant headcount',
+            _draft.households[h].headcount,
+            (text) => _draft.households[h].headcount = text,
+            numeric: true,
+          ),
+        ],
+        action: _draft.households.length <= 1
+            ? null
+            : IconButton(
                 tooltip: 'Remove household ${h + 1}',
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
@@ -325,22 +387,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
                   });
                 },
               ),
-          ],
-        ),
-        _field(
-          'h$h.name',
-          'Household name',
-          _draft.households[h].name,
-          (text) => _draft.households[h].name = text,
-        ),
-        _field(
-          'h$h.headcount',
-          'Occupant headcount',
-          _draft.households[h].headcount,
-          (text) => _draft.households[h].headcount = text,
-          numeric: true,
-        ),
-      ]),
+      ),
     OutlinedButton.icon(
       key: const ValueKey('addHousehold'),
       onPressed: () => setState(() {
@@ -372,86 +419,94 @@ class _BillWorkflowState extends State<BillWorkflow> {
           'Households receive equal shares. Occupant inputs are recorded for review; no individual monetary split is calculated.',
         ),
       ),
-    for (var h = 0; h < _draft.households.length; h++) ...[
-      _heading(_draft.households[h].name.trim()),
-      for (var o = 0; o < _draft.households[h].count!; o++)
-        _occupantFields(h, o),
-    ],
+    for (var h = 0; h < _draft.households.length; h++)
+      _householdSection(h, [
+        for (var o = 0; o < _draft.households[h].count!; o++)
+          _occupantFields(h, o),
+      ]),
   ];
 
   Widget _occupantFields(int h, int o) {
     final occupant = _draft.households[h].occupants[o];
     final key = 'h$h.o$o';
-    return _card([
-      _heading('Occupant ${o + 1}'),
-      _field(
-        '$key.measured',
-        'Measured usage (${_draft.category.unit}, optional)',
-        occupant.measured,
-        (text) => occupant.measured = text,
-        numeric: true,
-      ),
-      _dropdown(
-        '$key.mode',
-        'Occupancy duration',
-        occupant.mode,
-        OccupancyMode.values,
-        modeLabel,
-        (mode) => occupant.mode = mode,
-      ),
-      if (occupant.mode == OccupancyMode.fullPeriod)
-        Text('Full Period: ${_draft.periodDays} days'),
-      if (occupant.mode == OccupancyMode.manualDays)
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: _card([
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(
+            'Occupant ${o + 1}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
         _field(
-          '$key.days',
-          'Occupancy days',
-          occupant.days,
-          (text) => occupant.days = text,
+          '$key.measured',
+          'Measured usage (${_draft.category.unit}, optional)',
+          occupant.measured,
+          (text) => occupant.measured = text,
           numeric: true,
         ),
-      if (occupant.mode == OccupancyMode.dateRanges) ...[
-        const Text(
-          'Both dates count. Ranges for this occupant must not overlap.',
+        _dropdown(
+          '$key.mode',
+          'Occupancy duration',
+          occupant.mode,
+          OccupancyMode.values,
+          modeLabel,
+          (mode) => occupant.mode = mode,
         ),
-        for (var r = 0; r < occupant.ranges.length; r++) ...[
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: Text('Range ${r + 1}')),
-              if (occupant.ranges.length > 1)
-                IconButton(
-                  tooltip: 'Remove range ${r + 1}',
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () => setState(() {
-                    occupant.ranges.removeAt(r);
-                    _errors = {};
-                    _revision++;
-                  }),
-                ),
-            ],
+        if (occupant.mode == OccupancyMode.fullPeriod)
+          Text('Full Period: ${_draft.periodDays} days'),
+        if (occupant.mode == OccupancyMode.manualDays)
+          _field(
+            '$key.days',
+            'Occupancy days',
+            occupant.days,
+            (text) => occupant.days = text,
+            numeric: true,
           ),
-          _date(
-            '$key.r$r.start',
-            'Range start',
-            occupant.ranges[r].start,
-            (text) => occupant.ranges[r].start = text,
+        if (occupant.mode == OccupancyMode.dateRanges) ...[
+          const Text(
+            'Both dates count. Ranges for this occupant must not overlap.',
           ),
-          _date(
-            '$key.r$r.end',
-            'Range end',
-            occupant.ranges[r].end,
-            (text) => occupant.ranges[r].end = text,
+          for (var r = 0; r < occupant.ranges.length; r++) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: Text('Range ${r + 1}')),
+                if (occupant.ranges.length > 1)
+                  IconButton(
+                    tooltip: 'Remove range ${r + 1}',
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () => setState(() {
+                      occupant.ranges.removeAt(r);
+                      _errors = {};
+                      _revision++;
+                    }),
+                  ),
+              ],
+            ),
+            _range(
+              '$key.r$r',
+              '$key.r$r.start',
+              '$key.r$r.end',
+              occupant.ranges[r].start,
+              occupant.ranges[r].end,
+              (start, end) {
+                occupant.ranges[r].start = start;
+                occupant.ranges[r].end = end;
+              },
+            ),
+          ],
+          OutlinedButton.icon(
+            key: ValueKey('$key.addRange'),
+            onPressed: () =>
+                setState(() => occupant.ranges.add(OccupancyRangeDraft())),
+            icon: const Icon(Icons.add),
+            label: const Text('Add date range'),
           ),
         ],
-        OutlinedButton.icon(
-          key: ValueKey('$key.addRange'),
-          onPressed: () =>
-              setState(() => occupant.ranges.add(OccupancyRangeDraft())),
-          icon: const Icon(Icons.add),
-          label: const Text('Add date range'),
-        ),
-      ],
-    ]);
+      ]),
+    );
   }
 
   String _durationSummary(OccupantDraft occupant, Occupant input) {
@@ -467,7 +522,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
     Occupant input, {
     int? cents,
   }) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.fromLTRB(12, 8, 0, 8),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -519,11 +574,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
           ),
         ),
       for (var h = 0; h < bill.households.length; h++)
-        _card([
-          Text(
-            bill.households[h].name,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+        _householdSection(h, [
           if (results)
             Text(
               formatPhp(_allocation!.households[h].amountCents),
@@ -553,20 +604,27 @@ class _BillWorkflowState extends State<BillWorkflow> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: _step == 0,
+    canPop: false,
     onPopInvokedWithResult: (didPop, result) {
       if (!didPop) _back();
     },
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Basic Bill Splitter'),
-        leading: _step == 0
-            ? null
-            : IconButton(
-                tooltip: 'Back',
-                onPressed: _back,
-                icon: const Icon(Icons.arrow_back),
-              ),
+        title: const Text('Splitter'),
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: _back,
+          icon: const Icon(Icons.arrow_back),
+        ),
+        actions: [
+          IconButton(
+            key: const ValueKey('goHome'),
+            tooltip: 'Home',
+            onPressed: _returnHome,
+            icon: const Icon(Icons.home_outlined),
+          ),
+          AppMenu(version: widget.version, confirmExit: _confirmDiscard),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -642,7 +700,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
             Expanded(
               child: FilledButton(
                 key: const ValueKey('next'),
-                onPressed: _step == 4 ? _newCalculation : _next,
+                onPressed: _step == 4 ? _returnHome : _next,
                 child: Text(
                   _step == 4
                       ? 'New calculation'
@@ -656,62 +714,5 @@ class _BillWorkflowState extends State<BillWorkflow> {
         ),
       ),
     ),
-  );
-}
-
-class _DateField extends StatefulWidget {
-  const _DateField({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.error,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String value;
-  final String? error;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_DateField> createState() => _DateFieldState();
-}
-
-class _DateFieldState extends State<_DateField> {
-  late final _controller = TextEditingController(text: widget.value);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pick() async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: parseDate(_controller.text) ?? DateTime.now(),
-      firstDate: DateTime(1),
-      lastDate: DateTime(9999, 12, 31),
-    );
-    if (selected == null || !mounted) return;
-    _controller.text = dateText(selected);
-    widget.onChanged(_controller.text);
-  }
-
-  @override
-  Widget build(BuildContext context) => TextFormField(
-    controller: _controller,
-    keyboardType: TextInputType.datetime,
-    decoration: InputDecoration(
-      labelText: widget.label,
-      hintText: 'YYYY-MM-DD',
-      errorText: widget.error,
-      suffixIcon: IconButton(
-        tooltip: 'Choose ${widget.label.toLowerCase()}',
-        onPressed: _pick,
-        icon: const Icon(Icons.calendar_month_outlined),
-      ),
-    ),
-    onChanged: widget.onChanged,
   );
 }

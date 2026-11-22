@@ -5,6 +5,28 @@ import 'package:flutter_test/flutter_test.dart';
 BillDraft draft() => BillDraft(today: DateTime(2026, 11, 1))..amount = '100.00';
 
 void main() {
+  test('only entered work requires discard confirmation', () {
+    final input = BillDraft(today: DateTime(2026, 11, 1));
+    expect(input.hasMeaningfulInputs, isFalse);
+    input.selectCategory(BillCategory.rent);
+    expect(input.hasMeaningfulInputs, isFalse);
+    input.amount = '0';
+    expect(input.hasMeaningfulInputs, isTrue);
+    input.amount = '';
+    input.method = AllocationMethod.hybrid;
+    expect(input.hasMeaningfulInputs, isTrue);
+    input.method = input.category.defaultMethod;
+    input.periodEnd = '2026-11-29';
+    expect(input.hasMeaningfulInputs, isTrue);
+    input.periodEnd = '2026-11-30';
+    final household = input.households.single;
+    household.headcount = '2';
+    household.prepareOccupants();
+    household.occupants[1].measured = '0';
+    household.headcount = '1';
+    expect(input.hasMeaningfulInputs, isTrue);
+  });
+
   test('PHP display includes whole amounts, trailing zeros and zero cents', () {
     expect(formatPhp(700), '₱7.00');
     expect(formatPhp(750), '₱7.50');
