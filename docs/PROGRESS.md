@@ -68,10 +68,11 @@ The following work remains before a first production release:
    not establish complete release attribution. Keep the README's GitHub logo
    attribution. The repository has no separate provenance/license record for
    `assets/app_icon.png` or `assets/banner.png`; confirm their distribution rights.
-5. Create and securely back up the production keystore, configure local signing
-   properties, then verify the signed candidate. The release signing configuration
-   is prepared, but no production key exists in this repository and no signed
-   candidate has been built.
+5. The production keystore has been created and its certificate verified. The
+   external signing-properties file is configured locally, and Gradle's
+   environment-variable configuration has been verified without packaging an
+   APK. Building and validating a signed candidate remain pending. No release
+   APK has been built.
 6. Verify build setup from a fresh checkout with a recorded Flutter SDK revision.
    See [Architecture](ARCHITECTURE.md#build-configuration-and-fresh-checkouts) for
    ignored wrapper components and Flutter's bootstrap behavior.

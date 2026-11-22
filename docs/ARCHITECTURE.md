@@ -300,57 +300,83 @@ keystores, caches, private fixtures, and generated outputs remain excluded.
 
 ## Production Release Signing
 
-Release builds use a dedicated Gradle signing configuration. Gradle reads
-`android/key.properties` when present; keep that file local and untracked. It
-must contain these four properties:
+Release builds use a dedicated Gradle signing configuration. Set
+`BILL_SPLITTER_KEY_PROPERTIES` to the absolute path of a private
+`key.properties` file outside the repository. The file must contain
+`storeFile`, `storePassword`, `keyAlias`, and `keyPassword`. For example,
+use forward slashes in Windows properties paths:
 
 ```properties
-storeFile=C:/Users/your-name/keys/basic-bill-splitter-release.jks
+storeFile=C:/private-signing/basic-bill-splitter-release.jks
 storePassword=<keystore-password>
 keyAlias=<key-alias>
 keyPassword=<key-password>
 ```
 
-Use an absolute keystore path outside the repository. The release build checks
-that all properties are present and that the path names an existing readable
-file outside the checkout. A missing or invalid configuration fails a release
-task with a message that does not print property values. Debug builds do not
-require signing credentials. The repository ignore rules cover
-`android/key.properties` and local `.jks` and `.keystore` files; keep the
-keystore outside the checkout regardless.
+Set the variable in the PowerShell session used for Flutter/Gradle builds:
 
-Create the private key only after choosing a secure storage location. Android
-Studio's **Build > Generate Signed Bundle / APK** wizard can create a keystore;
+```powershell
+$env:BILL_SPLITTER_KEY_PROPERTIES = 'C:\private-signing\key.properties'
+```
+
+To persist it for the current Windows user, run this in PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    'BILL_SPLITTER_KEY_PROPERTIES',
+    'C:\private-signing\key.properties',
+    'User'
+)
+```
+
+A persistent user variable is available to newly launched terminals and
+applications. Restart Android Studio and its terminals after setting it so
+Gradle inherits the value. The variable holds only the properties-file path,
+never a password.
+
+Gradle does not fall back to a repository-local properties file. Release tasks
+require the environment variable to name an absolute, readable regular file
+outside the repository. Gradle also requires all four properties and an
+existing readable keystore at an absolute path outside the checkout. Missing or
+invalid configuration fails release tasks with a message that does not print
+property values. Debug builds work without this environment variable and
+production-signing credentials.
+
+Keep both the properties file and keystore outside Git and outside the checkout.
+The repository ignores `android/key.properties` and repository-local JKS and
+keystore files as a safeguard; use the external properties file for release
+signing. Do not place passwords in tracked files, command history, or logs.
+
+Create a private key only after choosing secure storage. Android Studio's
+**Build > Generate Signed Bundle / APK** wizard can create a keystore;
 choose a path outside the repository and store it securely. Alternatively, use
 the JDK's `keytool` interactively so it prompts for passwords:
 
 ```text
-keytool -genkeypair -v -keystore <absolute-path-outside-repository> -alias <key-alias> -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -storetype JKS -keystore <absolute-path-outside-repository> -alias <key-alias> -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Enter the resulting keystore path, alias, and passwords in the untracked
-`android/key.properties`. Do not put actual values in source control or
-command history. Keep secure, separate backups of the keystore and passwords;
-losing the private key may prevent ordinary signed updates to existing
-installations.
+Record the alias and recovery instructions in a password manager. Keep separate
+secure backups of the keystore and its passwords; losing the private key may
+prevent ordinary signed updates to existing installations.
 
-Once the key and local properties are configured, build the signed APK with:
+Once the established key and external properties file are configured, build a
+signed APK with:
 
 ```text
 flutter build apk --release
 ```
 
-Inspect the certificate with Android SDK Build Tools' `apksigner`:
+Inspect the APK certificate with Android SDK Build Tools' `apksigner`:
 
 ```text
 apksigner verify --print-certs <path-to-apk>
 ```
 
-Keep using the same signing identity for subsequent APK updates. Android accepts
-an in-place update only when the installed app and update have a compatible
-signing identity. Losing the key can therefore require users to uninstall the
-existing app before installing a differently signed build, which removes its
-app-private data. Key backup and retention are part of release operations.
+Keep using the same signing identity for later APK updates. Android accepts an
+in-place update only when the installed app and update have compatible signing
+identities. Losing the key can require users to uninstall the existing app
+before installing a differently signed build, removing its app-private data.
 
-Generating a key, creating a signed APK, installing it, and publishing it are
-separate steps and are not part of this repository configuration change.
+Key creation, configuration, backup, and certificate checks are separate from
+building, installing, and publishing a release.

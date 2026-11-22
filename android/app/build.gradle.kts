@@ -8,10 +8,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val releaseSigningPropertiesFile = rootProject.file("key.properties")
-val releaseSigningProperties = Properties().apply {
-    if (releaseSigningPropertiesFile.isFile) {
-        releaseSigningPropertiesFile.inputStream().use(::load)
+val releaseSigningPropertiesPath = System.getenv("BILL_SPLITTER_KEY_PROPERTIES")?.trim()
+val releaseSigningProperties = Properties()
+val releaseSigningPropertiesFile = try {
+    releaseSigningPropertiesPath?.takeIf { it.isNotEmpty() }?.let { Paths.get(it) }
+} catch (_: Exception) {
+    null
+}
+if (releaseSigningPropertiesFile != null &&
+    Files.isRegularFile(releaseSigningPropertiesFile) &&
+    Files.isReadable(releaseSigningPropertiesFile)
+) {
+    releaseSigningPropertiesFile.toFile().inputStream().use { stream ->
+        releaseSigningProperties.load(stream)
     }
 }
 val releaseStorePath = releaseSigningProperties.getProperty("storeFile")?.trim()
@@ -25,11 +34,44 @@ gradle.taskGraph.whenReady {
             task.name.startsWith("validateSigningRelease")
     }
     if (releaseTasks.isNotEmpty()) {
+        val configuredPath = releaseSigningPropertiesPath?.takeIf { it.isNotEmpty() }
+            ?: throw GradleException(
+                "Release signing is not configured. Set BILL_SPLITTER_KEY_PROPERTIES to an external key.properties file."
+            )
+        val propertiesPath = try {
+            Paths.get(configuredPath)
+        } catch (_: Exception) {
+            throw GradleException(
+                "BILL_SPLITTER_KEY_PROPERTIES must name an existing readable properties file outside the repository."
+            )
+        }
+        if (!propertiesPath.isAbsolute ||
+            !Files.isRegularFile(propertiesPath) ||
+            !Files.isReadable(propertiesPath)
+        ) {
+            throw GradleException(
+                "BILL_SPLITTER_KEY_PROPERTIES must name an existing readable properties file outside the repository."
+            )
+        }
+
+        val repository = rootProject.projectDir.toPath().toRealPath()
+        val realPropertiesFile = try {
+            propertiesPath.toRealPath()
+        } catch (_: Exception) {
+            throw GradleException(
+                "BILL_SPLITTER_KEY_PROPERTIES must name an existing readable properties file outside the repository."
+            )
+        }
+        if (realPropertiesFile.startsWith(repository)) {
+            throw GradleException(
+                "BILL_SPLITTER_KEY_PROPERTIES must name an existing readable properties file outside the repository."
+            )
+        }
         if (listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
                 .any { it.isNullOrBlank() }
         ) {
             throw GradleException(
-                "Release signing is not configured. Set storeFile, storePassword, keyAlias, and keyPassword in android/key.properties."
+                "The external release signing properties are incomplete. Check storeFile, storePassword, keyAlias, and keyPassword."
             )
         }
 
@@ -40,7 +82,6 @@ gradle.taskGraph.whenReady {
         } catch (_: Exception) {
             throw GradleException("Release signing storeFile must be a valid absolute path outside the repository.")
         }
-        val repository = rootProject.projectDir.toPath().toRealPath()
         val realKeystore = try {
             keystore.toRealPath()
         } catch (_: Exception) {
