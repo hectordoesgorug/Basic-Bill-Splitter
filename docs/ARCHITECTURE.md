@@ -28,8 +28,8 @@ Data moves from **User Input → Draft Validation → Calculation Engine → Res
 | --- | --- |
 | `lib/main.dart` | App entry point, Material 3 theme, and Home route |
 | `lib/app/home_screen.dart` | Home category selection, fresh draft creation, saved-period continuity suggestion, and app shell |
-| `lib/app/app_menu.dart` | About, How to, unavailable History/Settings entries, and activity Exit |
-| `lib/app/app_platform.dart` | Android method-channel wrapper, repository instance, version lookup, repository link, and activity exit |
+| `lib/app/app_menu.dart` | About, How to, History category selection, unavailable Settings entry, and activity Exit |
+| `lib/app/app_platform.dart` | Android method-channel wrapper for repository access, PNG sharing, version lookup, repository link, and activity exit |
 | `lib/workflow/bill_draft.dart` | Transient fields, category/method defaults, parsing, date and form validation, and typed Bill construction |
 | `lib/workflow/bill_workflow.dart` | Five-step UI, validation-gated navigation, result invalidation, calculation, save/replace/exit flows, and result display |
 | `lib/workflow/date_range_fields.dart` | Billing and occupancy date selection and input |
@@ -39,6 +39,9 @@ Data moves from **User Input → Draft Validation → Calculation Engine → Res
 | `lib/storage/bill_repository.dart` | Repository contract, platform implementation, save result types, and in-memory test implementation |
 | `lib/storage/saved_bill_record.dart` | Versioned record metadata, snapshot JSON encoding/decoding, and consistency validation |
 | `lib/storage/billing_period.dart` | Pure-Dart assigned-month, inclusive overlap, and next-period rules |
+| `lib/history/bill_history_screen.dart` | Category/year History, monthly graph/list, and read-only saved record Card/Details views |
+| `lib/sharing/bill_share_card.dart` | Reusable current/saved snapshot card data and visual card |
+| `lib/sharing/bill_share_export.dart` | Full-card PNG rendering and Android share-channel orchestration |
 
 ## Workflow and Validation
 
@@ -54,7 +57,9 @@ The 0–10 headcount control is a presentation limit. Zero can be selected, but 
 
 Input edits clear the in-memory bill and allocation. Results navigation is available only while a valid allocation exists. Reopening earlier inputs without editing retains the calculation; editing requires validation and calculation again. Review's Calculate action creates a fresh allocation from the current draft rather than using a prior result.
 
-The workflow creates the saved snapshot only from the current calculated bill and allocation. A saved snapshot is a historical result and is not silently recomputed when the calculator changes.
+The workflow creates the saved snapshot only from the current calculated bill and allocation. A saved snapshot is a historical result and is not silently recomputed when the calculator changes. History loads records through `BillRepository`, filters by category and assigned year/month, and displays stored allocations without invoking `BillCalculator`. Annual graphs represent one saved bill per populated month; a saved zero-cent value is distinct from a missing month.
+
+Both current Results and saved History records map to `ShareBillCardData`. `ShareBillCard` renders the concise monetary card, and `bill_share_export.dart` captures the entire variable-height card as a PNG. The Android method channel passes PNG bytes to a native `FileProvider` share intent. The provider exposes only temporary files under its dedicated cache subdirectory; sharing does not save or change a bill.
 
 ## Android Storage Boundary and Errors
 
@@ -70,5 +75,7 @@ Android storage failures return a platform-channel error; Dart does not interpre
 | `test/workflow/` | Draft parsing/validation, billing-period helpers, and date-range controls |
 | `test/storage/bill_repository_test.dart` | Repository save, conflict, movement, and integrity behavior |
 | `test/widget_test.dart` | Home, workflow navigation, validation, calculation/result UI, storage-channel flows, and layout |
+| `test/history/` | Category/year selection, graph/list state, and read-only saved details |
+| `test/sharing/` | Reusable card content, full-card PNG output, and share-channel orchestration |
 
 Automated repository and platform-channel tests do not establish physical-device behavior. Report Android hardware checks separately.

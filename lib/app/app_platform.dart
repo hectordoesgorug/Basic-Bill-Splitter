@@ -27,5 +27,8 @@ abstract final class AppPlatform {
     }
   }
 
+  static Future<void> sharePng(Uint8List bytes) =>
+      channel.invokeMethod<void>('sharePng', {'png': bytes});
+
   static Future<void> exit() => SystemNavigator.pop();
 }

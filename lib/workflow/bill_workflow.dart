@@ -12,6 +12,8 @@ import '../storage/saved_bill_record.dart';
 import 'bill_draft.dart';
 import 'date_range_fields.dart';
 import 'household_section.dart';
+import '../sharing/bill_share_card.dart';
+import '../sharing/bill_share_export.dart';
 
 class BillWorkflow extends StatefulWidget {
   const BillWorkflow({
@@ -47,6 +49,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
   String? _savedCreatedAt;
   String? _savedSignature;
   bool _saving = false;
+  bool _sharing = false;
   int _overlapRequest = 0;
   String? _acknowledgedOverlap;
 
@@ -434,6 +437,29 @@ class _BillWorkflowState extends State<BillWorkflow> {
       widget.onHome();
     } else if (action == 'save') {
       await _save(exitAfterSuccess: true);
+    }
+  }
+
+  Future<void> _shareResults() async {
+    if (_saving || _sharing) return;
+    if (_bill == null || _allocation == null || !_canVisit(4)) {
+      _message('Calculate this bill again before sharing.');
+      return;
+    }
+    setState(() => _sharing = true);
+    try {
+      await shareBillCard(
+        context,
+        ShareBillCardData.fromCalculation(
+          category: _draft.category,
+          startDate: _draft.periodStart,
+          endDate: _draft.periodEnd,
+          bill: _bill!,
+          allocation: _allocation!,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sharing = false);
     }
   }
 
@@ -1170,7 +1196,11 @@ class _BillWorkflowState extends State<BillWorkflow> {
     },
     child: Scaffold(
       appBar: AppBar(
-        leading: AppMenu(version: widget.version, confirmExit: _confirmDiscard),
+        leading: AppMenu(
+          version: widget.version,
+          repository: widget.repository,
+          confirmExit: _confirmDiscard,
+        ),
         actions: [
           IconButton(
             tooltip: 'Back',
@@ -1283,9 +1313,14 @@ class _BillWorkflowState extends State<BillWorkflow> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton(
-                  key: const ValueKey('shareDisabled'),
-                  onPressed: null,
-                  child: const Text('Share'),
+                  key: const ValueKey('share'),
+                  onPressed: _saving || _sharing ? null : _shareResults,
+                  child: _sharing
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Share'),
                 ),
               ),
               const SizedBox(width: 8),

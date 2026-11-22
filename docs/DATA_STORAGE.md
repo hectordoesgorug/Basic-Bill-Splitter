@@ -4,7 +4,7 @@
 
 Completed bill calculations are stored on Android in the app-private SQLite database `saved_bills.db`. The database uses Android's built-in SQLite APIs; Dart accesses it through the `BillRepository` abstraction and the `basic_bill_splitter/app` method channel. Reads and writes run on a native single-thread executor so SQLite work does not block Flutter's UI thread.
 
-Working drafts are held in memory only and are not restored after process termination. There is no History interface, PNG sharing, or ZIP Backup/Restore feature.
+Working drafts are held in memory only and are not restored after process termination. History reads saved snapshots through the repository. PNG sharing creates temporary cache files outside the database; ZIP Backup/Restore is not implemented.
 
 ## Schema and Record Format
 
@@ -52,3 +52,7 @@ A database read/write failure is surfaced as a platform-channel storage error. T
 The Android database version is 1. The current upgrade handler has no migration path and fails explicitly if a different database version is encountered. Any future schema change must add and verify an explicit migration before it is released; it must not silently drop or recreate saved data.
 
 The database resides in app-private storage. Android backup is disabled for the app, and backup and device-transfer rules exclude the database and its journal/WAL files. No storage or network permission is requested for saving bills. This protection does not provide user-facing backup or restore; those features remain out of scope.
+
+## PNG Sharing
+
+Sharing renders a PNG in Flutter from the current calculated result or the stored historical snapshot; it does not save, update, or recalculate a bill. Android validates the PNG signature and enforces a 32 MiB payload limit, writes a uniquely named temporary file under the app cache directory `bill-share/`, and shares it with an `image/png` `ACTION_SEND` chooser. The AndroidX `FileProvider` is non-exported and grants temporary read access only to that cache subdirectory through a `content://` URI. It does not expose the SQLite database or general app files. The app deletes a file if it cannot open a recipient chooser and prunes only its own `bill-*.png` files older than 24 hours before the next share. Share files are temporary and are not part of the saved-bill schema or History records.

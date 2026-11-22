@@ -1,8 +1,12 @@
 package com.hectordoesgorug.basic_bill_splitter
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
+import java.util.UUID
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -78,9 +82,112 @@ class MainActivity : FlutterActivity() {
                             "conflict" to outcome.conflict
                         )
                     }
+                    "sharePng" -> sharePng(call.argument<ByteArray>("png"), result)
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun sharePng(bytes: ByteArray?, result: MethodChannel.Result) {
+        if (bytes == null || !hasPngSignature(bytes)) {
+            result.error("SHARE_FAILED", "The bill image is invalid.", null)
+            return
+        }
+        if (bytes.size > MAX_SHARE_BYTES) {
+            result.error("SHARE_FAILED", "The bill image is too large to share.", null)
+            return
+        }
+
+        storageExecutor.execute {
+            var file: File? = null
+            try {
+                val directory = File(cacheDir, SHARE_DIRECTORY)
+                if (!directory.exists() && !directory.mkdirs()) {
+                    error("Could not create share cache")
+                }
+                pruneOldShareFiles(directory)
+                val shareFile = File(directory, "bill-${UUID.randomUUID()}.png")
+                file = shareFile
+                shareFile.outputStream().use { output ->
+                    output.write(bytes)
+                    output.flush()
+                }
+
+                val uri = FileProvider.getUriForFile(
+                    applicationContext,
+                    "$packageName.billshare",
+                    shareFile
+                )
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "image/png"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = ClipData.newUri(contentResolver, "Bill summary", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                if (packageManager.queryIntentActivities(shareIntent, 0).isEmpty()) {
+                    file.delete()
+                    mainHandler.post {
+                        result.error(
+                            "SHARE_UNAVAILABLE",
+                            "No application can receive a PNG image.",
+                            null
+                        )
+                    }
+                    return@execute
+                }
+                val chooser = Intent.createChooser(shareIntent, "Share bill").apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    clipData = ClipData.newUri(contentResolver, "Bill summary", uri)
+                }
+                mainHandler.post {
+                    try {
+                        if (isFinishing || isDestroyed) {
+                            file?.delete()
+                            result.error("SHARE_FAILED", "The app is no longer active.", null)
+                        } else {
+                            startActivity(chooser)
+                            result.success(null)
+                        }
+                    } catch (_: ActivityNotFoundException) {
+                        file?.delete()
+                        result.error(
+                            "SHARE_UNAVAILABLE",
+                            "No application can receive a PNG image.",
+                            null
+                        )
+                    } catch (_: SecurityException) {
+                        file?.delete()
+                        result.error("SHARE_FAILED", "The bill image could not be shared.", null)
+                    }
+                }
+            } catch (_: Exception) {
+                file?.delete()
+                mainHandler.post {
+                    result.error("SHARE_FAILED", "The bill image could not be shared.", null)
+                }
+            }
+        }
+    }
+
+    private fun hasPngSignature(bytes: ByteArray): Boolean {
+        val signature = byteArrayOf(
+            0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+        )
+        return bytes.size >= signature.size &&
+            signature.indices.all { bytes[it] == signature[it] }
+    }
+
+    private fun pruneOldShareFiles(directory: File) {
+        val cutoff = System.currentTimeMillis() - SHARE_FILE_TTL_MS
+        directory.listFiles()?.forEach { candidate ->
+            if (candidate.isFile &&
+                candidate.name.startsWith("bill-") &&
+                candidate.name.endsWith(".png") &&
+                candidate.lastModified() < cutoff
+            ) {
+                candidate.delete()
+            }
+        }
     }
 
     private fun storage(
@@ -109,5 +216,8 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "basic_bill_splitter/app"
+        private const val SHARE_DIRECTORY = "bill-share"
+        private const val MAX_SHARE_BYTES = 32 * 1024 * 1024
+        private const val SHARE_FILE_TTL_MS = 24 * 60 * 60 * 1000L
     }
 }

@@ -326,47 +326,46 @@ void main() {
     expect(find.text('Choose a bill type'), findsOneWidget);
   });
 
-  testWidgets(
-    'About and How to are functional and future entries are disabled',
-    (tester) async {
-      await tester.pumpWidget(const MyApp());
+  testWidgets('About and How to work while Settings remains disabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    Future<void> openMenu() async {
+      await tester.tap(find.byKey(const ValueKey('appMenu')));
       await tester.pumpAndSettle();
-      Future<void> openMenu() async {
-        await tester.tap(find.byKey(const ValueKey('appMenu')));
-        await tester.pumpAndSettle();
-      }
+    }
 
-      await openMenu();
-      for (final label in ['History — Coming soon', 'Settings — Coming soon']) {
-        final item = find.ancestor(
-          of: find.text(label),
-          matching: find.byType(PopupMenuItem<String>),
-        );
-        expect(tester.widget<PopupMenuItem<String>>(item).enabled, isFalse);
-      }
-      await tester.tap(find.text('About'));
-      await tester.pumpAndSettle();
-      expect(find.text('About Basic Bill Splitter'), findsOneWidget);
-      expect(find.text('Version $version'), findsNWidgets(2));
-      expect(
-        find.textContaining('offline shared-bill calculator'),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-      await openMenu();
-      await tester.tap(find.text('How to'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Details — enter'), findsOneWidget);
-      expect(
-        find.textContaining('including metered occupants'),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-      expect(find.text('Choose a bill type'), findsOneWidget);
-    },
-  );
+    await openMenu();
+    final historyItem = find.ancestor(
+      of: find.text('History'),
+      matching: find.byType(PopupMenuItem<String>),
+    );
+    expect(tester.widget<PopupMenuItem<String>>(historyItem).enabled, isTrue);
+    final settingsItem = find.ancestor(
+      of: find.text('Settings — Coming soon'),
+      matching: find.byType(PopupMenuItem<String>),
+    );
+    expect(tester.widget<PopupMenuItem<String>>(settingsItem).enabled, isFalse);
+    await tester.tap(find.text('About'));
+    await tester.pumpAndSettle();
+    expect(find.text('About Basic Bill Splitter'), findsOneWidget);
+    expect(find.text('Version $version'), findsNWidgets(2));
+    expect(
+      find.textContaining('offline shared-bill calculator'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await openMenu();
+    await tester.tap(find.text('How to'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Details — enter'), findsOneWidget);
+    expect(find.textContaining('including metered occupants'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a bill type'), findsOneWidget);
+  });
 
   testWidgets('Home and first-step system Back confirm entered work', (
     tester,
@@ -1111,9 +1110,9 @@ void main() {
       );
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const ValueKey('shareDisabled')))
+            .widget<OutlinedButton>(find.byKey(const ValueKey('share')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
@@ -1129,9 +1128,9 @@ void main() {
       );
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const ValueKey('shareDisabled')))
+            .widget<OutlinedButton>(find.byKey(const ValueKey('share')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
@@ -1153,6 +1152,43 @@ void main() {
       );
     },
   );
+
+  testWidgets('Results Share sends a PNG without saving the calculation', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(initialDraft: validDraft(), repository: repository),
+      ),
+    );
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await tester.tap(find.byKey(const ValueKey('share')));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      for (
+        var attempt = 0;
+        attempt < 100 && !nativeCalls.any((call) => call.method == 'sharePng');
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    expect(nativeCalls.map((call) => call.method), contains('sharePng'));
+    final shareCall = nativeCalls.singleWhere(
+      (call) => call.method == 'sharePng',
+    );
+    final png = (shareCall.arguments as Map)['png'] as Uint8List;
+    expect(png.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(await repository.allRecords(), isEmpty);
+    expect(find.text('Results').last, findsOneWidget);
+  });
 
   testWidgets('Save persists current results and updates after recalculation', (
     tester,

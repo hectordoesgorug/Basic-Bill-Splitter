@@ -82,7 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return Scaffold(
-      appBar: AppBar(leading: AppMenu(version: _version)),
+      appBar: AppBar(
+        leading: AppMenu(version: _version, repository: _repository),
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
