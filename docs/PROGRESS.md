@@ -16,7 +16,7 @@ preparation.
 | MVP implementation baseline | Committed and pushed | `a94a96b8c521fc1e7363180679f8ae6e08e47d53` contains the completed MVP implementation. Repository review on 2026-11-23 confirmed that it matched local `main`, `origin/main`, and live remote `main` at that time. |
 | Documentation and metadata | Committed and pushed | `86e2a9605b0e92d2732c0fa9ebe5337cb0c9f63d` is the subsequent documentation-and-metadata commit. The editorial review confirmed local `main`, `origin/main`, and live remote `main` at this commit. |
 | Project license | Committed and pushed | MIT License; Copyright (c) 2026 hectordoesgorug. Added in commit `e6e3ee6f6ccb7f7246ad48229b1a0260fdd75f60`. |
-| Production release preparation | Pending | Package version remains `1.0.0+1`. Release-version approval, signing-key creation, signed-candidate verification, and publication remain pending. |
+| Production release preparation | Pending | Package version remains `1.0.0+1`. Release-version approval, signed-candidate verification, and publication remain pending. The signing identity and local signing setup are prepared. |
 
 The earlier progress page described the refinements as local and physical-device
 checks as pending. Source publication and reported manual testing subsequently
@@ -53,34 +53,23 @@ rerun Flutter tests, compile Kotlin, build an APK, or install on a device.
 
 ## Release Preparation
 
-The following work remains before a first production release:
+The dependency notices and asset provenance are now documented, and the app
+provides offline access to its bundled Flutter and native notices. The following
+release steps remain:
 
-1. Approve the release version/build number. The MIT license is committed in the root `LICENSE`.
-2. Review the documentation changes and establish an approved source baseline.
-3. Complete dependency and asset attribution review. Local resolved packages
-   `material_ui` 1.11.1 and `cupertino_ui` 1.1.7 contain BSD three-clause terms;
-   `cupertino_icons` 1.0.9 contains MIT terms. Their notices must be preserved as
-   required for distribution. This focused review is not a complete inventory of
-   transitive Dart, Flutter engine, Android, or bundled font notices.
-4. Verify the final artifact's bundled notices and how users or recipients can
-   access required terms. The current About dialog has no license-viewing entry
-   point. Existing debug outputs contain `NOTICES.Z`; their presence alone does
-   not establish complete release attribution. Keep the README's GitHub logo
-   attribution. The repository has no separate provenance/license record for
-   `assets/app_icon.png` or `assets/banner.png`; confirm their distribution rights.
-5. The production keystore has been created and its certificate verified. The
-   external signing-properties file is configured locally, and Gradle's
-   environment-variable configuration has been verified without packaging an
-   APK. Building and validating a signed candidate remain pending. No release
-   APK has been built.
-6. Verify build setup from a fresh checkout with a recorded Flutter SDK revision.
+1. Approve the release version/build number.
+2. Review the current documentation and establish an approved source baseline.
+3. Inspect the signed release APK to confirm generated notices are packaged and
+   readable through About → Third-Party Licenses. Debug packaging was checked;
+   release packaging remains pending.
+4. Verify build setup from a fresh checkout with a recorded Flutter SDK revision.
    See [Architecture](ARCHITECTURE.md#build-configuration-and-fresh-checkouts) for
    ignored wrapper components and Flutter's bootstrap behavior.
-7. Run applicable automated checks, then validate the signed candidate on an
+5. Run applicable automated checks, then validate the signed candidate on an
    authorized test device with isolated data: clean install and upgrade, restart
    persistence, calculation/save/replace/delete, currency and Dark Mode, PNG
    recipient access, valid and invalid ZIP restores, and Clear All versus Wipe Data.
-8. Inspect APK identity, version, permissions and signer; record SHA-256, prepare
+6. Inspect APK identity, version, permissions and signer; record SHA-256, prepare
    release notes, and obtain final approval before tagging or publishing.
 
 ## Deferred

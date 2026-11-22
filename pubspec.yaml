@@ -19,6 +19,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  licenses:
+    - assets/native_android_licenses.txt
   assets:
     - assets/banner.png
     - assets/github-mark-black.png

@@ -28,7 +28,7 @@ Data moves from **User Input → Draft Validation → Calculation Engine → Res
 | --- | --- |
 | `lib/main.dart` | App entry point, root-owned Material 3 light/dark themes, persisted appearance/currency loading, and Home route |
 | `lib/app/home_screen.dart` | Home category selection, fresh draft creation, saved-period continuity suggestion, and app shell |
-| `lib/app/app_menu.dart` | About, How to, History category selection, Settings navigation, and activity Exit |
+| `lib/app/app_menu.dart` | About and third-party license access, How to, History category selection, Settings navigation, and activity Exit |
 | `lib/app/app_platform.dart` | Android method-channel wrapper for repository access, SAF backup/restore, appearance/currency preferences, PNG sharing, version lookup, repository link, and activity exit |
 | `lib/workflow/bill_draft.dart` | Transient fields, category/method defaults, parsing, date and form validation, and typed Bill construction |
 | `lib/workflow/bill_workflow.dart` | Five-step UI, validation-gated navigation, result invalidation, calculation, save/replace/exit flows, and result display |
@@ -74,6 +74,37 @@ Dart code talks to the `BillRepository` abstraction. `PlatformBillRepository` en
 `SettingsScreen` uses this same repository for listing, full replacement, and wipe; it does not access SQLite directly. History deletion targets a stable record ID and expected update timestamp through the same repository boundary. Backup and restore use Android's Storage Access Framework document picker. Native `SavedBillBackup` writes and validates the versioned ZIP payload, while Dart decodes each restored `SavedBillRecord` before it can request replacement. Replacement and wipe use database transactions. Dark Mode state belongs to `MyApp`; Android private preferences persist it separately from saved bills and ZIP archives.
 
 Android storage failures return a platform-channel error; Dart does not interpret read failures as an empty database. Settings reports operation failures without claiming success, and a failed native replacement rolls back its transaction. Record decoding rejects unsupported schemas and inconsistent snapshots rather than accepting malformed data.
+
+## Third-Party Notices and Asset Provenance
+
+The About dialog links to Flutter's built-in `showLicensePage`, which displays
+entries from `LicenseRegistry`. Flutter bundles package-root licenses and
+Flutter framework/engine notices into its generated notice asset. The app adds
+`assets/native_android_licenses.txt` through the `flutter.licenses` pubspec field;
+Flutter merges that file into the same registry. This keeps the notices available
+offline and avoids a second license viewer or runtime dependency. The release APK
+must still be inspected to confirm that its generated notices are present and
+readable in the shipped artifact.
+
+The current resolved Dart dependencies include `material_ui` 1.11.1 and
+`cupertino_ui` 1.1.7 under BSD-3-Clause, and `cupertino_icons` 1.0.9 under MIT.
+Their notices, along with licenses for transitive Dart packages and Flutter, are
+collected by Flutter. The resolved Android release runtime includes Flutter's
+Android embedding and ABI artifacts plus AndroidX, Kotlin standard library,
+Kotlin coroutines, JetBrains Java annotations, ReLinker, Guava `listenablefuture`,
+and JSpecify. The current native Maven artifacts listed in
+`assets/native_android_licenses.txt` are under Apache License 2.0; the file carries
+the complete license text and applies to the listed coordinates and versions.
+Refresh the inventory when the resolved Android runtime graph changes.
+
+`assets/app_icon.png` and `assets/banner.png` are ChatGPT-generated project
+artwork. Android's density-specific launcher icon PNGs use artwork corresponding
+to `assets/app_icon.png`. App category and action symbols use Flutter's Material
+Icons; no separate third-party icon source is currently identified. AI generation
+does not establish exclusive copyright protection. The GitHub Invertocat files
+remain unchanged third-party brand assets and are not relicensed by the project's
+MIT license. See the README for their source, trademark, and non-endorsement
+attribution.
 
 ## Source and Test Map
 

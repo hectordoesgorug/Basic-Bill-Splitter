@@ -124,6 +124,16 @@ class AppMenu extends StatelessWidget {
               const Text(
                 'Basic Bill Splitter is an offline shared-bill calculator for residential expenses. Split one bill among households using measured usage, occupancy days, or equal household shares. No account is required.',
               ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                key: const ValueKey('thirdPartyLicenses'),
+                onPressed: () => showLicensePage(
+                  context: context,
+                  applicationName: 'Basic Bill Splitter',
+                ),
+                icon: const Icon(Icons.article_outlined),
+                label: const Text('Third-Party Licenses'),
+              ),
             ],
           ),
         );

@@ -166,5 +166,14 @@ imply sponsorship or endorsement.
 
 The project is licensed under the [MIT License](LICENSE). That license covers
 this project's original work; third-party packages, assets, trademarks, and logos
-retain their own terms. Dependency notices and their distribution requirements
-still need a release review; see [Progress](docs/PROGRESS.md#release-preparation).
+retain their own terms. Open **About → Third-Party Licenses** in the app to read
+the bundled Flutter and Android dependency notices offline. Flutter automatically
+collects package and engine notices; Android runtime notices are included from
+[the native notice file](assets/native_android_licenses.txt). The signed release
+APK still needs inspection to confirm the notices are present in the final artifact.
+
+The app icon and banner are ChatGPT-generated project artwork. Android launcher
+icon variants use matching app-icon artwork at different densities. AI generation
+does not establish exclusive copyright protection. UI symbols use Flutter's
+Material Icons; no separate third-party source for the app's UI icons
+was identified.
