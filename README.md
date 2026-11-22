@@ -16,7 +16,7 @@ Each button starts a new draft with the category's default allocation method.
 
 Five tabs—**Details**, **Households**, **Usage**, **Review**, and **Results**—show workflow progress. A tab becomes available only after its preceding step validates; available earlier tabs can be revisited directly.
 
-1. **Details** — check the selected category, choose the allocation method, enter the PHP amount and inclusive billing period, and supply total consumption for hybrid. When saved bills exist for that category, a new draft proposes the day after the latest saved period and a calendar-month period.
+1. **Details** — check the selected category, choose the allocation method, enter the amount in the selected display currency and inclusive billing period, and supply total consumption for hybrid. When saved bills exist for that category, a new draft proposes the day after the latest saved period and a calendar-month period.
 2. **Households** — name households and set each headcount with the minus/value/plus stepper (0–10). Zero is selectable for editing, but each participating household must have 1–10 occupants to continue. Clear resets this section to one default household and occupant.
 3. **Usage** — optionally enter measured usage and choose manual days, Full Period, or date ranges. Manual days must fit the billing period; ranges must be inside it and cannot overlap for the same occupant, including shared endpoints. Clear resets usage and duration fields while preserving household and bill details.
 4. **Review** — inspect the bill, household, and occupant inputs. Calculate recomputes from the current validated draft.
@@ -28,14 +28,13 @@ its default. The method can then be overridden for this bill. Measured inputs
 do not affect the two non-hybrid methods.
 
 Amounts accept plain decimal digits with up to two decimal places (for example
-`1234.56`) and convert directly to integer cents. Results use PHP formatting,
-such as `₱1,234.56`. Review and Results display continuous quantities with
+`1234.56`) and convert directly to integer cents. Results use the selected currency symbol and retain two decimal places, such as `₱1,234.56` for PHP. Currency selection changes labels only; it does not convert amounts. Review and Results display continuous quantities with
 exactly two decimal places, including trailing zeros. Dates keep their date
 format; headcounts and occupancy-day counts remain integers. Display rounding
 never changes the original entry text, calculator inputs, weights, or
 intermediate precision.
 Reusable presentation helpers are in `lib/workflow/bill_draft.dart`.
-Choose Billing Period opens one start/end date-range calendar. The read-only
+Set Billing Period opens a date-range calendar with a centered OK action and Cancel. The read-only
 summary below it uses `dd MMM yyyy - dd MMM yyyy` with English month abbreviations;
 billing dates have no separate editable fields. Confirming updates the pair,
 and cancelling preserves the selected dates. Individual occupancy ranges retain
@@ -53,7 +52,7 @@ Available tabs and Back navigation preserve the in-memory draft. Revisiting an i
 
 Saved calculations are stored in an app-private, versioned SQLite database on Android. A saved record is assigned to the calendar month containing the greatest number of billing-period days; ties go to the later month. Only one record per category and assigned month can be saved. Replacing a conflicting bill requires confirmation. Saving an unchanged calculation does not create a duplicate. If a saved result is edited and recalculated, Save updates that record; changing its assigned month moves it, and a destination conflict also requires confirmation. Database failures leave the current calculation available and report an error.
 
-New drafts propose the next billing period from the latest saved end date for that category. Manually confirmed periods that overlap another saved period of the same category show a warning, but users may continue. History is available from the app menu: choose a bill category to view annual monthly amounts and saved bills, then open a read-only snapshot with Card and Details views. Share exports the same results card as a PNG from current Results or History; Android opens the system share chooser. History and sharing read app-private saved records or the current calculation and work offline. Settings provides manual ZIP Backup and full-replacement Restore through Android's document picker, Clear All for the active draft, Wipe Data for saved bills, and a persisted Dark Mode toggle. Backups are not encrypted; store them securely. Clear All leaves saved bills untouched, while Wipe Data permanently removes saved records after confirmation. The Results Exit action returns Home and offers Save & Exit, Exit Without Saving, or Cancel when needed. The app-menu Exit command closes the Android activity.
+New drafts propose the next billing period from the latest saved end date for that category. Manually confirmed periods that overlap another saved period of the same category show a warning, but users may continue. History is available from the app menu: choose a bill category to view annual monthly amounts and saved bills, then open a read-only snapshot with Card, Details, and Computation views. Long-press a bill entry to reveal its confirmed Delete action. Share exports the same results card as a PNG from current Results or History; Android opens the system share chooser. History and sharing read app-private saved records or the current calculation and work offline. Settings provides manual ZIP Backup and full-replacement Restore through Android's document picker, Clear All for the active draft, Wipe Data for saved bills, a persisted Dark Mode toggle, and a saved Currency preference. Existing records retain their stored currencies; mixed-currency graphs show unconverted amounts and are not financially equivalent comparisons. Backups are not encrypted; store them securely. Clear All leaves saved bills untouched, while Wipe Data permanently removes saved records after confirmation. The Results Exit action returns Home and offers Save & Exit, Exit Without Saving, or Cancel when needed. The app-menu Exit command closes the Android activity.
 The Home footer places Visit GitHub and the app version near the bottom of the
 visible screen, above system insets. It scrolls with the page on shorter displays
 or with larger text. Visit GitHub opens the repository in an external browser.
@@ -170,6 +169,7 @@ History, PNG sharing, Settings backup/restore, draft clearing, saved-record wipi
 
 - [Architecture](docs/ARCHITECTURE.md) describes application layers, component responsibilities, and data flow.
 - [Data storage](docs/DATA_STORAGE.md) documents saved records, persistence, and billing-period rules.
+- [Progress](docs/PROGRESS.md) tracks implemented work, verification, pending checks, and deferred features.
 
 ## Verification
 

@@ -14,6 +14,8 @@ class AppMenu extends StatelessWidget {
     this.confirmExit,
     this.darkMode = false,
     this.onDarkModeChanged,
+    this.currencyCode = 'PHP',
+    this.onCurrencyChanged,
     this.hasActiveDraft = false,
     this.onDataReset,
   });
@@ -23,6 +25,8 @@ class AppMenu extends StatelessWidget {
   final Future<bool> Function()? confirmExit;
   final bool darkMode;
   final Future<bool> Function(bool enabled)? onDarkModeChanged;
+  final String currencyCode;
+  final Future<bool> Function(String code)? onCurrencyChanged;
   final bool hasActiveDraft;
   final VoidCallback? onDataReset;
 
@@ -41,6 +45,18 @@ class AppMenu extends StatelessWidget {
           ],
         ),
       );
+
+  Widget _howToStep(String number, String title, String detail) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(radius: 14, child: Text(number)),
+        const SizedBox(width: 12),
+        Expanded(child: Text('$title — $detail')),
+      ],
+    ),
+  );
 
   Future<void> _history(BuildContext context) async {
     final category = await showDialog<BillCategory>(
@@ -115,17 +131,52 @@ class AppMenu extends StatelessWidget {
         await _information(
           context,
           'How to',
-          const Text(
-            'Choose a bill type on Home. The five tabs—Details, Households, Usage, Review, and Results—unlock as each preceding step validates. Earlier available steps can be revisited.\n\n'
-            'Details — enter the amount, billing period, and hybrid total consumption. The allocation method can be changed for this bill.\n\n'
-            'Households — name each household and set its 0–10 headcount with the stepper. Zero is selectable, but continuing requires 1–10 occupants per household. Clear resets households to one default household and occupant.\n\n'
-            'Usage — enter optional measured usage and choose manual days, Full Period, or non-overlapping date ranges. Clear resets all usage and duration inputs while preserving household and bill details.\n\n'
-            'Review — check inputs and Calculate to recompute.\n\n'
-            'Results — view reconciled household and applicable occupant amounts. Revisiting inputs asks for confirmation; editing requires calculating again. Save stores the result on this device. Share creates an image card and opens Android sharing. Exit offers Save & Exit, Exit Without Saving, or Cancel when needed.\n\n'
-            'Saved bills are kept in app-private storage, one per category and assigned month. A bill belongs to the month with the most covered days; ties go to the later month. Replacing a saved bill requires confirmation. New drafts propose a period after the latest saved bill of that category. Overlapping periods show a warning, but calculation can continue.\n\n'
-            'History is available from the menu by bill category. It shows annual monthly amounts and read-only saved details. The Card view can share a PNG; Details shows the saved calculation snapshot.\n\n'
-            'Hybrid charges measured usage, then shares remaining usage among all occupants by person-days, including metered occupants. Person-days splits by occupancy duration. Equal per household does not assign individual monetary shares.\n\n'
-            'Settings — Backup exports saved bills to a ZIP file through Android’s document picker. Files are not encrypted. Restore validates a ZIP and, after confirmation, replaces all saved bills. Clear All discards only the current calculation. Wipe Data permanently deletes all saved bills after confirmation. Dark Mode switches the app appearance and persists on this device. Drafts are not restored after the app closes.',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _howToStep(
+                '1',
+                'Choose a bill type',
+                'Select one of the six categories on Home.',
+              ),
+              _howToStep(
+                '2',
+                'Enter bill details',
+                'Add the amount and billing dates. Enter total consumption when Hybrid requires it.',
+              ),
+              _howToStep(
+                '3',
+                'Add households',
+                'Name each household and set 1–10 occupants. Zero is selectable but cannot pass validation.',
+              ),
+              _howToStep(
+                '4',
+                'Enter usage and duration',
+                'Add measured usage where applicable, then choose Full Period, manual days, or date ranges.',
+              ),
+              _howToStep(
+                '5',
+                'Review and calculate',
+                'Check the inputs and calculate household and applicable occupant shares.',
+              ),
+              _howToStep(
+                '6',
+                'Save or share',
+                'Save stores the result on this device. Share creates a PNG without saving.',
+              ),
+              const Text(
+                'Hybrid shares remaining usage by person-days across all occupants, including those with measured usage. Person-days follows occupancy duration. Equal per household does not assign occupant amounts.',
+              ),
+              const Divider(height: 28),
+              Text(
+                'History and Settings',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'History shows saved bills by category and year. Settings provides Backup, Restore, Clear All, Wipe Data, Dark Mode, and Currency. Clear All removes only the current draft. Wipe Data permanently deletes saved bills. Restore replaces the saved dataset. ZIP backups are not encrypted.',
+              ),
+            ],
           ),
         );
       case 'history':
@@ -138,6 +189,8 @@ class AppMenu extends StatelessWidget {
               hasActiveDraft: hasActiveDraft,
               darkMode: darkMode,
               onDarkModeChanged: onDarkModeChanged ?? (_) async => false,
+              currencyCode: currencyCode,
+              onCurrencyChanged: onCurrencyChanged ?? (_) async => false,
               onDataReset: onDataReset ?? () {},
             ),
           ),

@@ -14,6 +14,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _darkMode = false;
+  String _currencyCode = 'PHP';
 
   @override
   void initState() {
@@ -28,6 +29,12 @@ class _MyAppState extends State<MyApp> {
     } catch (_) {
       // Keep the established light appearance if preferences cannot be read.
     }
+    try {
+      final currencyCode = await AppPlatform.currencyCode();
+      if (mounted) setState(() => _currencyCode = currencyCode);
+    } catch (_) {
+      // Keep PHP when the stored currency is unreadable or unsupported.
+    }
   }
 
   Future<bool> _setDarkMode(bool enabled) async {
@@ -39,6 +46,19 @@ class _MyAppState extends State<MyApp> {
       return saved;
     } catch (_) {
       if (mounted) setState(() => _darkMode = previous);
+      return false;
+    }
+  }
+
+  Future<bool> _setCurrencyCode(String code) async {
+    final previous = _currencyCode;
+    setState(() => _currencyCode = code);
+    try {
+      final saved = await AppPlatform.setCurrencyCode(code);
+      if (!saved && mounted) setState(() => _currencyCode = previous);
+      return saved;
+    } catch (_) {
+      if (mounted) setState(() => _currencyCode = previous);
       return false;
     }
   }
@@ -61,6 +81,11 @@ class _MyAppState extends State<MyApp> {
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
     themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
-    home: HomeScreen(darkMode: _darkMode, onDarkModeChanged: _setDarkMode),
+    home: HomeScreen(
+      darkMode: _darkMode,
+      onDarkModeChanged: _setDarkMode,
+      currencyCode: _currencyCode,
+      onCurrencyChanged: _setCurrencyCode,
+    ),
   );
 }

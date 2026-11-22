@@ -106,8 +106,9 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Electricity bill'), findsOneWidget);
-    expect(find.text('₱123.45'), findsNWidgets(3));
+    expect(find.text('Electricity Bill'), findsOneWidget);
+    expect(find.text('Basic Bill Splitter'), findsOneWidget);
+    expect(find.text('PHP ₱123.45'), findsNWidgets(3));
     expect(find.textContaining('23 October 2026'), findsOneWidget);
     expect(find.textContaining('Occupant 1'), findsOneWidget);
     expect(find.textContaining('Person-days'), findsNothing);
@@ -125,7 +126,7 @@ void main() {
     );
     await tester.pumpWidget(MaterialApp(home: ShareBillCard(data: data)));
     expect(find.text('Occupant 1'), findsNothing);
-    expect(find.text('₱123.45'), findsNWidgets(2));
+    expect(find.text('PHP ₱123.45'), findsNWidgets(2));
   });
 
   testWidgets('PNG renderer captures the whole scrollable card', (
@@ -140,6 +141,7 @@ void main() {
       startDate: '2026-10-23',
       endDate: '2026-11-22',
       totalAmountCents: 12345,
+      currencyCode: 'USD',
       households: [
         for (var i = 0; i < 8; i++)
           ShareBillHousehold(

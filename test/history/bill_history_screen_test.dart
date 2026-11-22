@@ -16,6 +16,7 @@ SavedBillRecord savedBill({
   int amountCents = 10000,
   String householdName = 'Household 1',
   String method = 'personDays',
+  String currencyCode = 'PHP',
 }) {
   final start =
       '${year.toString().padLeft(4, '0')}-'
@@ -55,6 +56,7 @@ SavedBillRecord savedBill({
       ],
     },
     id: id,
+    currencyCode: currencyCode,
   );
 }
 
@@ -133,8 +135,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('2026'), findsOneWidget);
-      expect(find.byTooltip('October 2026: ₱0.00'), findsOneWidget);
-      expect(find.byTooltip('November 2026: ₱3,100.00'), findsOneWidget);
+      expect(find.byTooltip('October 2026: PHP ₱0.00'), findsOneWidget);
+      expect(find.byTooltip('November 2026: PHP ₱3,100.00'), findsOneWidget);
       expect(find.byKey(const ValueKey('history-record-zero')), findsOneWidget);
       expect(find.byKey(const ValueKey('history-record-nov')), findsOneWidget);
       expect(find.byKey(const ValueKey('history-record-sep')), findsNothing);
@@ -151,6 +153,30 @@ void main() {
       expect(find.text('2026'), findsOneWidget);
     },
   );
+
+  testWidgets('mixed currency graph labels amounts without conversion', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    await add(repository, savedBill(id: 'php', month: 10, currencyCode: 'PHP'));
+    await add(repository, savedBill(id: 'usd', month: 11, currencyCode: 'USD'));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BillHistoryScreen(
+          repository: repository,
+          category: BillCategory.electricity,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Amount (mixed currencies)'), findsOneWidget);
+    expect(
+      find.text('Multiple currencies shown. Amounts are not converted.'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('October 2026: PHP ₱100.00'), findsOneWidget);
+    expect(find.byTooltip('November 2026: USD \$100.00'), findsOneWidget);
+  });
 
   testWidgets('empty year navigation differs from repository errors', (
     tester,
@@ -170,6 +196,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('${DateTime.now().year + 1}'), findsOneWidget);
   });
+
+  testWidgets(
+    'History deletion confirms and removes only the selected record',
+    (tester) async {
+      final repository = InMemoryBillRepository();
+      await add(repository, savedBill(id: 'delete-me', month: 11));
+      await add(repository, savedBill(id: 'keep-me', month: 12));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BillHistoryScreen(
+            repository: repository,
+            category: BillCategory.electricity,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final selected = find.byKey(const ValueKey('history-record-delete-me'));
+      await tester.longPress(selected);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('historyDelete-delete-me')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('historyDelete-delete-me')));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Electricity · November 2026'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(await repository.allRecords(), hasLength(2));
+
+      await tester.longPress(selected);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('historyDelete-delete-me')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+      expect(await repository.find('electricity', 2026, 11), isNull);
+      expect((await repository.find('electricity', 2026, 12))!.id, 'keep-me');
+    },
+  );
 
   testWidgets('saved details show the stored snapshot without edit controls', (
     tester,
@@ -197,15 +266,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Assigned month: November 2026'), findsOneWidget);
-    expect(find.text('Total bill: ₱123.45'), findsOneWidget);
-    expect(find.text('Household amount: ₱123.45'), findsOneWidget);
-    expect(find.text('Occupant amount: ₱123.45'), findsOneWidget);
+    expect(find.text('Total bill: PHP ₱123.45'), findsOneWidget);
+    expect(find.text('Household amount: PHP ₱123.45'), findsOneWidget);
+    expect(find.text('Occupant amount: PHP ₱123.45'), findsOneWidget);
     expect(find.text('Edit'), findsNothing);
     expect(find.text('Delete'), findsNothing);
 
     final household = find.byKey(const ValueKey('savedHousehold0'));
     expect(
       find.descendant(of: household, matching: find.text('Shared home')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Computation'));
+    await tester.pumpAndSettle();
+    expect(find.text('Step 1 — Count person-days'), findsOneWidget);
+    expect(find.text('Total: 1 person-days.'), findsOneWidget);
+    expect(
+      find.textContaining('does not recalculate the bill'),
       findsOneWidget,
     );
   });
@@ -224,7 +301,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Details'));
     await tester.pumpAndSettle();
-    expect(find.text('Household amount: ₱100.00'), findsOneWidget);
+    expect(find.text('Household amount: PHP ₱100.00'), findsOneWidget);
     expect(find.textContaining('Occupant amount:'), findsNothing);
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../currency/currency.dart';
 import '../storage/bill_repository.dart';
 
 /// Android facilities used by the app shell, without additional packages.
@@ -36,6 +37,18 @@ abstract final class AppPlatform {
   static Future<bool> setDarkMode(bool enabled) async =>
       await channel.invokeMethod<bool>('setDarkMode', {'enabled': enabled}) ??
       false;
+
+  static Future<String> currencyCode() async {
+    final code = await channel.invokeMethod<String>('getCurrency') ?? 'PHP';
+    currencyOption(code);
+    return code;
+  }
+
+  static Future<bool> setCurrencyCode(String code) async {
+    currencyOption(code);
+    return await channel.invokeMethod<bool>('setCurrency', {'code': code}) ??
+        false;
+  }
 
   static Future<bool> createBackup({
     required List<String> records,

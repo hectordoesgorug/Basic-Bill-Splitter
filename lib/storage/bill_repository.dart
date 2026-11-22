@@ -39,6 +39,7 @@ abstract interface class BillRepository {
   });
   Future<List<SavedBillRecord>> replaceAll(List<SavedBillRecord> records);
   Future<int> deleteAll();
+  Future<bool> delete(String id, {required String expectedUpdatedAt});
 }
 
 class PlatformBillRepository implements BillRepository {
@@ -142,6 +143,14 @@ class PlatformBillRepository implements BillRepository {
   Future<int> deleteAll() async =>
       await channel.invokeMethod<int>('wipeSavedBills') ??
       (throw StateError('Storage returned no wipe result'));
+
+  @override
+  Future<bool> delete(String id, {required String expectedUpdatedAt}) async =>
+      await channel.invokeMethod<bool>('deleteSavedBill', {
+        'id': id,
+        'expectedUpdatedAt': expectedUpdatedAt,
+      }) ??
+      (throw StateError('Storage returned no deletion result'));
 }
 
 /// In-memory repository for deterministic workflow and persistence tests.
@@ -202,6 +211,7 @@ class InMemoryBillRepository implements BillRepository {
       throw StateError('The saved record being updated no longer exists');
     }
     if (source != null &&
+        source.currencyCode == record.currencyCode &&
         source.category == record.category &&
         source.assignedYear == record.assignedYear &&
         source.assignedMonth == record.assignedMonth &&
@@ -223,6 +233,7 @@ class InMemoryBillRepository implements BillRepository {
       startDate: record.startDate,
       endDate: record.endDate,
       snapshot: record.snapshot,
+      currencyCode: record.currencyCode,
     );
     _records[key] = saved;
     return SaveBillResult.saved(saved);
@@ -250,5 +261,15 @@ class InMemoryBillRepository implements BillRepository {
     final count = _records.length;
     _records.clear();
     return count;
+  }
+
+  @override
+  Future<bool> delete(String id, {required String expectedUpdatedAt}) async {
+    final record = _records.values
+        .where((candidate) => candidate.id == id)
+        .firstOrNull;
+    if (record == null || record.updatedAt != expectedUpdatedAt) return false;
+    _records.remove(record.uniqueKey);
+    return true;
   }
 }

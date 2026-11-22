@@ -307,7 +307,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('How to'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Details — enter'), findsOneWidget);
+      expect(find.textContaining('Enter bill details'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       await tester.binding.handlePopRoute();
@@ -367,8 +367,11 @@ void main() {
     await openMenu();
     await tester.tap(find.text('How to'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Details — enter'), findsOneWidget);
-    expect(find.textContaining('including metered occupants'), findsOneWidget);
+    expect(find.textContaining('Enter bill details'), findsOneWidget);
+    expect(
+      find.textContaining('including those with measured usage'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     expect(find.text('Choose a bill type'), findsOneWidget);
@@ -479,17 +482,17 @@ void main() {
       await tester.ensureVisible(billing);
       await tester.tap(billing);
       await tester.pumpAndSettle();
-      var dialog = tester.widget<DateRangePickerDialog>(
-        find.byType(DateRangePickerDialog),
+      var dialog = tester.widget<CalendarDatePicker>(
+        find.byType(CalendarDatePicker),
       );
-      expect(dialog.initialDateRange!.start, DateTime(2026, 11, 1));
+      expect(dialog.initialDate, DateTime(2026, 11, 30));
       expect(find.byKey(const ValueKey('periodStart')), findsNothing);
       expect(find.byKey(const ValueKey('periodEnd')), findsNothing);
       await tester.tap(find.text('3').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('20').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Use dates'));
+      await tester.tap(find.byKey(const ValueKey('dateRangeConfirm')));
       await tester.pumpAndSettle();
       expect(draft.periodStart, '2026-11-03');
       expect(draft.periodEnd, '2026-11-20');
@@ -501,16 +504,16 @@ void main() {
       await tester.ensureVisible(billing);
       await tester.tap(billing);
       await tester.pumpAndSettle();
-      dialog = tester.widget<DateRangePickerDialog>(
-        find.byType(DateRangePickerDialog),
+      dialog = tester.widget<CalendarDatePicker>(
+        find.byType(CalendarDatePicker),
       );
-      expect(dialog.initialDateRange!.start, DateTime(2026, 11, 3));
-      expect(dialog.initialDateRange!.end, DateTime(2026, 11, 20));
+      expect(dialog.initialDate, DateTime(2026, 11, 20));
+      expect(find.text('03/11/2026  –  20/11/2026'), findsOneWidget);
       await tester.tap(find.text('10').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('12').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Close'));
+      await tester.tap(find.byKey(const ValueKey('dateRangeCancel')));
       await tester.pumpAndSettle();
       expect(find.text('03 Nov 2026 - 20 Nov 2026'), findsOneWidget);
       expect(draft.periodStart, '2026-11-03');
@@ -522,8 +525,8 @@ void main() {
       await tester.ensureVisible(occupancy);
       await tester.tap(occupancy);
       await tester.pumpAndSettle();
-      dialog = tester.widget<DateRangePickerDialog>(
-        find.byType(DateRangePickerDialog),
+      dialog = tester.widget<CalendarDatePicker>(
+        find.byType(CalendarDatePicker),
       );
       expect(dialog.firstDate, DateTime(2026, 11, 3));
       expect(dialog.lastDate, DateTime(2026, 11, 20));
@@ -531,7 +534,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('8').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Use dates'));
+      await tester.tap(find.byKey(const ValueKey('dateRangeConfirm')));
       await tester.pumpAndSettle();
       final range = draft.households.single.occupants.single.ranges.single;
       expect(range.start, '2026-11-06');
@@ -550,7 +553,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('12').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Close'));
+      await tester.tap(find.byKey(const ValueKey('dateRangeCancel')));
       await tester.pumpAndSettle();
       expect(range.start, '2026-11-06');
       expect(range.end, '2026-11-08');
@@ -688,8 +691,8 @@ void main() {
       await tester.ensureVisible(dates);
       await tester.tap(dates);
       await tester.pumpAndSettle();
-      expect(find.byType(DateRangePickerDialog), findsOneWidget);
-      await tester.tap(find.byTooltip('Close'));
+      expect(find.byType(CalendarDatePicker), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('dateRangeCancel')));
       await tester.pumpAndSettle();
       await next(tester);
       await next(tester);
@@ -1411,7 +1414,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('20').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Use dates'));
+    await tester.tap(find.byKey(const ValueKey('dateRangeConfirm')));
     await tester.pumpAndSettle();
     expect(find.text('Overlapping billing period'), findsOneWidget);
     await tester.tap(find.text('Continue Anyway'));

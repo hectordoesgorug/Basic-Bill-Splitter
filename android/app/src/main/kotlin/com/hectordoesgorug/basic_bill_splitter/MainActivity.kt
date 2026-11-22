@@ -91,6 +91,13 @@ class MainActivity : FlutterActivity() {
                         savedBills.replaceAll(records)
                     }
                     "wipeSavedBills" -> storage(result) { savedBills.deleteAll() }
+                    "deleteSavedBill" -> storage(result) {
+                        savedBills.delete(
+                            call.argument<String>("id") ?: error("Missing saved bill ID"),
+                            call.argument<String>("expectedUpdatedAt")
+                                ?: error("Missing saved bill version")
+                        )
+                    }
                     "getDarkMode" -> storage(result) {
                         getSharedPreferences(PREFERENCES, MODE_PRIVATE)
                             .getBoolean(DARK_MODE, false)
@@ -101,6 +108,19 @@ class MainActivity : FlutterActivity() {
                         getSharedPreferences(PREFERENCES, MODE_PRIVATE)
                             .edit()
                             .putBoolean(DARK_MODE, enabled)
+                            .commit()
+                    }
+                    "getCurrency" -> storage(result) {
+                        getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+                            .getString(CURRENCY_CODE, "PHP")
+                    }
+                    "setCurrency" -> storage(result) {
+                        val code = call.argument<String>("code")
+                            ?: error("Missing currency code")
+                        require(code in CURRENCY_CODES) { "Unsupported currency code" }
+                        getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+                            .edit()
+                            .putString(CURRENCY_CODE, code)
                             .commit()
                     }
                     "createBackup" -> {
@@ -330,5 +350,10 @@ class MainActivity : FlutterActivity() {
         private const val BACKUP_MIME_TYPE = "application/zip"
         private const val PREFERENCES = "splitter_preferences"
         private const val DARK_MODE = "dark_mode"
+        private const val CURRENCY_CODE = "currency_code"
+        private val CURRENCY_CODES = setOf(
+            "PHP", "USD", "EUR", "GBP", "JPY", "CNY", "INR", "CAD", "AUD", "SGD",
+            "NZD", "HKD", "KRW", "TWD", "THB", "MYR", "IDR", "VND", "AED", "CHF"
+        )
     }
 }

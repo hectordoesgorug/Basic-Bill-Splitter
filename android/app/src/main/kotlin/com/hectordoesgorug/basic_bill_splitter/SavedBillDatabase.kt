@@ -99,6 +99,7 @@ internal class SavedBillDatabase(context: Context) :
                 return SaveOutcome("conflict", conflict = conflict.payload)
             }
             if (source != null &&
+                currency(source.json) == currency(candidate) &&
                 source.json.optJSONObject("snapshot").toString() ==
                 candidate.optJSONObject("snapshot").toString() &&
                 source.json.getString("category") == category &&
@@ -183,6 +184,26 @@ internal class SavedBillDatabase(context: Context) :
     }
 
     @Synchronized
+    fun delete(id: String, expectedUpdatedAt: String): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val existing = queryById(db, id) ?: return false
+            if (existing.json.getString("updatedAt") != expectedUpdatedAt) return false
+            val deleted = db.delete(
+                TABLE,
+                "id = ? AND updated_at = ?",
+                arrayOf(id, expectedUpdatedAt)
+            )
+            if (deleted != 1) return false
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    @Synchronized
     fun deleteAll(): Int {
         val db = writableDatabase
         db.beginTransaction()
@@ -219,6 +240,13 @@ internal class SavedBillDatabase(context: Context) :
             return if (cursor.moveToFirst()) cursor.getString(0) else null
         }
     }
+
+    private fun currency(json: JSONObject): String =
+        if (json.toString().contains("\"currencyCode\"")) {
+            json.getString("currencyCode")
+        } else {
+            "PHP"
+        }
 
     private fun values(json: JSONObject, payload: String) = ContentValues().apply {
         put("id", json.getString("id"))

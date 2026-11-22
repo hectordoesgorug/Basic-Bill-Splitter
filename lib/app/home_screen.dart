@@ -16,12 +16,16 @@ class HomeScreen extends StatefulWidget {
     this.repository,
     this.darkMode = false,
     this.onDarkModeChanged,
+    this.currencyCode = 'PHP',
+    this.onCurrencyChanged,
   });
 
   final BillDraft? initialDraft;
   final BillRepository? repository;
   final bool darkMode;
   final Future<bool> Function(bool enabled)? onDarkModeChanged;
+  final String currencyCode;
+  final Future<bool> Function(String code)? onCurrencyChanged;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -88,6 +92,8 @@ class _HomeScreenState extends State<HomeScreen> {
         version: _version,
         darkMode: widget.darkMode,
         onDarkModeChanged: widget.onDarkModeChanged,
+        currencyCode: widget.currencyCode,
+        onCurrencyChanged: widget.onCurrencyChanged,
         onHome: () => setState(() => _draft = null),
       );
     }
@@ -98,6 +104,8 @@ class _HomeScreenState extends State<HomeScreen> {
           repository: _repository,
           darkMode: widget.darkMode,
           onDarkModeChanged: widget.onDarkModeChanged,
+          currencyCode: widget.currencyCode,
+          onCurrencyChanged: widget.onCurrencyChanged,
           onDataReset: () => setState(() => _draft = null),
         ),
       ),

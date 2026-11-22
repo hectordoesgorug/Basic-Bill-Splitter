@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../calculation/bill_models.dart';
+import '../currency/currency.dart';
 import '../storage/saved_bill_record.dart';
 import '../workflow/bill_draft.dart';
 
@@ -22,6 +23,7 @@ class ShareBillCardData {
     required this.startDate,
     required this.endDate,
     required this.totalAmountCents,
+    this.currencyCode = 'PHP',
     required List<ShareBillHousehold> households,
   }) : households = List.unmodifiable(households);
 
@@ -29,6 +31,7 @@ class ShareBillCardData {
   final String startDate;
   final String endDate;
   final int totalAmountCents;
+  final String currencyCode;
   final List<ShareBillHousehold> households;
 
   factory ShareBillCardData.fromCalculation({
@@ -37,11 +40,13 @@ class ShareBillCardData {
     required String endDate,
     required Bill bill,
     required BillAllocation allocation,
+    String currencyCode = 'PHP',
   }) => ShareBillCardData(
     category: category.label,
     startDate: startDate,
     endDate: endDate,
     totalAmountCents: bill.totalAmountCents,
+    currencyCode: currencyCode,
     households: [
       for (final result in allocation.households)
         ShareBillHousehold(
@@ -64,6 +69,7 @@ class ShareBillCardData {
       startDate: record.startDate,
       endDate: record.endDate,
       totalAmountCents: snapshot['totalAmountCents']! as int,
+      currencyCode: record.currencyCode,
       households: [
         for (final value in households)
           _savedHousehold(value as Map<String, Object?>),
@@ -156,7 +162,7 @@ class ShareBillCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${data.category} bill',
+                        '${data.category} Bill',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -200,7 +206,11 @@ class ShareBillCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        formatPhp(data.totalAmountCents),
+                        formatCurrency(
+                          data.totalAmountCents,
+                          data.currencyCode,
+                          includeCode: true,
+                        ),
                         key: const ValueKey('shareCardTotal'),
                         style: const TextStyle(
                           color: _ink,
@@ -250,7 +260,11 @@ class ShareBillCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              formatPhp(data.households[h].amountCents),
+                              formatCurrency(
+                                data.households[h].amountCents,
+                                data.currencyCode,
+                                includeCode: true,
+                              ),
                               key: ValueKey('shareHouseholdAmount$h'),
                               textAlign: TextAlign.end,
                               style: const TextStyle(
@@ -279,7 +293,11 @@ class ShareBillCard extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    formatPhp(amounts[o]),
+                                    formatCurrency(
+                                      amounts[o],
+                                      data.currencyCode,
+                                      includeCode: true,
+                                    ),
                                     key: ValueKey('shareOccupantAmount$h-$o'),
                                     style: const TextStyle(
                                       color: _ink,
@@ -300,7 +318,7 @@ class ShareBillCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 const Center(
                   child: Text(
-                    'Splitter · Basic Bill Splitter',
+                    'Basic Bill Splitter',
                     style: TextStyle(color: _subtle, fontSize: 11),
                   ),
                 ),

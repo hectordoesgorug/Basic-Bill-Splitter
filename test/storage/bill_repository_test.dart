@@ -11,6 +11,7 @@ SavedBillRecord record({
   String start = '2026-10-23',
   String end = '2026-11-22',
   int cents = 10000,
+  String currencyCode = 'PHP',
   DateTime? now,
 }) => SavedBillRecord.create(
   category: 'electricity',
@@ -45,6 +46,7 @@ SavedBillRecord record({
     ],
   },
   id: id,
+  currencyCode: currencyCode,
   now: now ?? DateTime.utc(2026, 11, 23),
 );
 
@@ -56,6 +58,26 @@ void main() {
     expect(decoded.createdAt, original.createdAt);
     expect(decoded.snapshot['totalAmountCents'], 10000);
     expect(decoded.toJson(), original.toJson());
+  });
+
+  test('legacy records default to PHP and new currency codes round-trip', () {
+    final php = record();
+    final legacy = php.toJson()..remove('currencyCode');
+    expect(SavedBillRecord.decode(jsonEncode(legacy)).currencyCode, 'PHP');
+
+    final usd = record(currencyCode: 'USD');
+    expect(SavedBillRecord.decode(usd.encode()).currencyCode, 'USD');
+    expect(
+      () => SavedBillRecord.create(
+        category: 'electricity',
+        assignedMonth: const AssignedMonth(2026, 11),
+        startDate: '2026-10-23',
+        endDate: '2026-11-22',
+        snapshot: usd.snapshot,
+        currencyCode: 'XYZ',
+      ),
+      throwsFormatException,
+    );
   });
 
   test('rejects malformed and unsupported saved records', () {
@@ -138,6 +160,33 @@ void main() {
       expect(result.alreadySaved, isTrue);
       expect(result.record!.id, first.id);
       expect(await repository.allRecords(), hasLength(1));
+    },
+  );
+
+  test(
+    'single-record deletion requires a matching snapshot timestamp',
+    () async {
+      final repository = InMemoryBillRepository();
+      final first = record();
+      final second = record(
+        id: 'other',
+        assignedMonth: 12,
+        start: '2026-11-23',
+        end: '2026-12-22',
+      );
+      await repository.save(first);
+      await repository.save(second);
+
+      expect(
+        await repository.delete(first.id, expectedUpdatedAt: 'stale'),
+        isFalse,
+      );
+      expect(
+        await repository.delete(first.id, expectedUpdatedAt: first.updatedAt),
+        isTrue,
+      );
+      expect(await repository.find('electricity', 2026, 11), isNull);
+      expect((await repository.find('electricity', 2026, 12))!.id, second.id);
     },
   );
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
 
+import '../currency/currency.dart';
 import '../storage/bill_repository.dart';
 import '../storage/saved_bill_record.dart';
 import 'app_platform.dart';
@@ -15,6 +16,8 @@ class SettingsScreen extends StatefulWidget {
     required this.hasActiveDraft,
     required this.darkMode,
     required this.onDarkModeChanged,
+    required this.currencyCode,
+    required this.onCurrencyChanged,
     required this.onDataReset,
   });
 
@@ -22,6 +25,8 @@ class SettingsScreen extends StatefulWidget {
   final bool hasActiveDraft;
   final bool darkMode;
   final DarkModeWriter onDarkModeChanged;
+  final String currencyCode;
+  final Future<bool> Function(String code) onCurrencyChanged;
   final VoidCallback onDataReset;
 
   @override
@@ -30,13 +35,15 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _darkMode = widget.darkMode;
+  late String _currencyCode = widget.currencyCode;
   bool _themeSaving = false;
+  bool _currencySaving = false;
   String? _operation;
   int? _savedCount;
   bool _countLoading = true;
   bool _countError = false;
 
-  bool get _busy => _operation != null || _themeSaving;
+  bool get _busy => _operation != null || _themeSaving || _currencySaving;
 
   @override
   void initState() {
@@ -91,6 +98,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!saved) _darkMode = previous;
     });
     if (!saved) _message('Dark Mode preference could not be saved.');
+  }
+
+  Future<void> _changeCurrency(String? code) async {
+    if (code == null || code == _currencyCode || _busy) return;
+    setState(() => _currencySaving = true);
+    try {
+      final records = await widget.repository.allRecords();
+      if (!mounted) return;
+      final differs = records.any((record) => record.currencyCode != code);
+      if (differs) {
+        final continueChange =
+            await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Change currency display?'),
+                content: const Text(
+                  'Some saved bills use another currency. Existing bills will retain their original currency. Amounts will not be converted.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Continue'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        if (!continueChange || !mounted) return;
+      }
+      final saved = await widget.onCurrencyChanged(code);
+      if (!mounted) return;
+      if (saved) {
+        setState(() => _currencyCode = code);
+      } else {
+        _message('Currency preference could not be saved.');
+      }
+    } catch (_) {
+      _message('Saved bills or currency preference could not be accessed.');
+    } finally {
+      if (mounted) setState(() => _currencySaving = false);
+    }
   }
 
   Future<void> _backup() async {
@@ -432,6 +484,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Dark Mode'),
             value: _darkMode,
             onChanged: _busy ? null : _changeTheme,
+          ),
+          const SizedBox(height: 16),
+          Text('PREFERENCES', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('settingsCurrency'),
+            initialValue: _currencyCode,
+            decoration: const InputDecoration(labelText: 'Currency'),
+            items: [
+              for (final option in supportedCurrencies)
+                DropdownMenuItem(value: option.code, child: Text(option.label)),
+            ],
+            onChanged: _busy ? null : _changeCurrency,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Changes currency labels only. No amount conversion.',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           if (_countError)
             TextButton.icon(

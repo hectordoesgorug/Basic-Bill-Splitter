@@ -37,11 +37,13 @@ Data moves from **User Input → Draft Validation → Calculation Engine → Res
 | `lib/calculation/bill_models.dart` | Typed Bill, Household, Occupant, and immutable allocation models |
 | `lib/calculation/bill_calculator.dart` | Pure-Dart input validation, allocation, and deterministic cent reconciliation |
 | `lib/storage/bill_repository.dart` | Repository contract, platform implementation, save and replace-all result types, and in-memory test implementation |
-| `lib/storage/saved_bill_record.dart` | Versioned record metadata, snapshot JSON encoding/decoding, and consistency validation |
+| `lib/storage/saved_bill_record.dart` | Versioned record metadata, backward-compatible currency decoding, snapshot JSON encoding/decoding, and consistency validation |
+| `lib/currency/currency.dart` | Fixed supported-currency list, code validation, and integer-cent formatting |
 | `android/app/src/main/kotlin/com/hectordoesgorug/basic_bill_splitter/SavedBillBackup.kt` | Native version 1 ZIP creation, checksum, entry limits, and archive validation |
 | `lib/storage/billing_period.dart` | Pure-Dart assigned-month, inclusive overlap, and next-period rules |
-| `lib/history/bill_history_screen.dart` | Category/year History, monthly graph/list, and read-only saved record Card/Details views |
-| `lib/app/settings_screen.dart` | Backup, validated full-replacement restore, current-draft clearing, saved-record wiping, and Dark Mode controls |
+| `lib/history/bill_history_screen.dart` | Category/year History, monthly graph/list, stale-safe single-record deletion, and read-only Card/Details/Computation views |
+| `lib/history/bill_computation_view.dart` | Plain-language explanation using stored inputs and saved allocations; never recalculates historical bills |
+| `lib/app/settings_screen.dart` | Backup, validated full-replacement restore, current-draft clearing, saved-record wiping, Dark Mode, and Currency preferences |
 | `lib/sharing/bill_share_card.dart` | Reusable current/saved snapshot card data and visual card |
 | `lib/sharing/bill_share_export.dart` | Full-card PNG rendering and Android share-channel orchestration |
 
@@ -63,13 +65,13 @@ The workflow creates the saved snapshot only from the current calculated bill an
 
 Both current Results and saved History records map to `ShareBillCardData`. `ShareBillCard` renders the concise monetary card, and `bill_share_export.dart` captures the entire variable-height card as a PNG. The Android method channel passes PNG bytes to a native `FileProvider` share intent. The provider exposes only temporary files under its dedicated cache subdirectory; sharing does not save or change a bill.
 
-`SettingsScreen` is opened from the shared app menu on Home or during a workflow. It reuses `BillRepository` for backup snapshots, validated full replacement, and saved-record wipe. Clear All calls the Home draft-reset callback and leaves the repository untouched. Successful restore or wipe also clears the active draft so a Results screen cannot retain stale saved-state references. The root `MyApp` owns Light/Dark theme state; the Settings toggle updates that state and persists it through Android preferences.
+`SettingsScreen` is opened from the shared app menu on Home or during a workflow. It reuses `BillRepository` for backup snapshots, validated full replacement, and saved-record wipe. Clear All calls the Home draft-reset callback and leaves the repository untouched. Successful restore or wipe also clears the active draft so a Results screen cannot retain stale saved-state references. The root `MyApp` owns Light/Dark theme and current-currency state; Settings persists both through Android preferences. Currency changes affect new/current unsaved calculations, while saved records render with their stored currency.
 
 ## Android Storage Boundary, Settings, and Errors
 
 Dart code talks to the `BillRepository` abstraction. `PlatformBillRepository` encodes records and invokes the `basic_bill_splitter/app` method channel. The Kotlin `MainActivity` dispatches SQLite work on a single-thread executor and posts results back to the Flutter main thread. `SavedBillDatabase` owns SQLite operations. The repository contract also has an in-memory implementation for deterministic Dart tests.
 
-`SettingsScreen` uses this same repository for listing, full replacement, and deletion; it does not access SQLite directly. Backup and restore use Android's Storage Access Framework document picker. Native `SavedBillBackup` writes and validates the versioned ZIP payload, while Dart decodes each restored `SavedBillRecord` before it can request replacement. Replacement and wipe use database transactions. Dark Mode state belongs to `MyApp`; Android private preferences persist it separately from saved bills and ZIP archives.
+`SettingsScreen` uses this same repository for listing, full replacement, and wipe; it does not access SQLite directly. History deletion targets a stable record ID and expected update timestamp through the same repository boundary. Backup and restore use Android's Storage Access Framework document picker. Native `SavedBillBackup` writes and validates the versioned ZIP payload, while Dart decodes each restored `SavedBillRecord` before it can request replacement. Replacement and wipe use database transactions. Dark Mode state belongs to `MyApp`; Android private preferences persist it separately from saved bills and ZIP archives.
 
 Android storage failures return a platform-channel error; Dart does not interpret read failures as an empty database. Settings reports operation failures without claiming success, and a failed native replacement rolls back its transaction. Record decoding rejects unsupported schemas and inconsistent snapshots rather than accepting malformed data.
 

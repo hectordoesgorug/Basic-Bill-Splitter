@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../calculation/bill_models.dart';
+import '../currency/currency.dart';
+import 'bill_computation_view.dart';
 import '../storage/bill_repository.dart';
 import '../storage/saved_bill_record.dart';
 import '../sharing/bill_share_card.dart';
@@ -41,6 +43,8 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
   int? _year;
   Object? _loadError;
   bool _loading = true;
+  String? _selectedRecordId;
+  bool _deleting = false;
 
   @override
   void initState() {
@@ -91,6 +95,73 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
     for (final record in _visibleRecords) record.assignedMonth: record,
   };
 
+  void _message(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _deleteRecord(SavedBillRecord record) async {
+    if (_deleting) return;
+    final category = BillCategory.values
+        .firstWhere((value) => value.name == record.category)
+        .label;
+    final month =
+        '${_monthNames[record.assignedMonth - 1]} ${record.assignedYear}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete saved bill?'),
+        content: Text(
+          'Delete this saved bill permanently? This action cannot be undone.\\n\\n'
+          '$category · $month\\n'
+          'Billing period: ${_dateLabel(record.startDate)} – ${_dateLabel(record.endDate)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      final deleted = await widget.repository.delete(
+        record.id,
+        expectedUpdatedAt: record.updatedAt,
+      );
+      if (!mounted) return;
+      if (!deleted) {
+        setState(() => _selectedRecordId = null);
+        _message(
+          'This bill changed or no longer exists. History was refreshed.',
+        );
+        await _loadHistory();
+        return;
+      }
+      setState(() {
+        _records = _records.where((item) => item.id != record.id).toList();
+        _selectedRecordId = null;
+      });
+      _message('Saved bill deleted.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _selectedRecordId = null);
+      _message('Saved bill could not be deleted. The record was retained.');
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   Future<void> _openRecord(SavedBillRecord record) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -102,7 +173,19 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('${widget.category.label} History')),
+    appBar: AppBar(
+      title: Text('${widget.category.label} History'),
+      actions: [
+        if (_selectedRecordId != null)
+          IconButton(
+            tooltip: 'Clear selection',
+            onPressed: _deleting
+                ? null
+                : () => setState(() => _selectedRecordId = null),
+            icon: const Icon(Icons.close),
+          ),
+      ],
+    ),
     body: SafeArea(
       child: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -196,17 +279,33 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
         final record = records[index];
         final month = _monthNames[record.assignedMonth - 1];
         final cents = record.snapshot['totalAmountCents']! as int;
+        final selected = record.id == _selectedRecordId;
         return ListTile(
           key: ValueKey('history-record-${record.id}'),
+          selected: selected,
+          selectedTileColor: Theme.of(context).colorScheme.secondaryContainer,
+          onLongPress: _deleting
+              ? null
+              : () => setState(() => _selectedRecordId = record.id),
           title: Text('$month ${record.assignedYear}'),
           subtitle: Text(
             '${_dateLabel(record.startDate)} – ${_dateLabel(record.endDate)}',
           ),
-          trailing: Text(
-            formatPhp(cents),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          onTap: () => _openRecord(record),
+          trailing: selected
+              ? IconButton(
+                  key: ValueKey('historyDelete-${record.id}'),
+                  tooltip: 'Delete saved bill',
+                  onPressed: _deleting ? null : () => _deleteRecord(record),
+                  icon: const Icon(Icons.delete_outline),
+                )
+              : Text(
+                  formatCurrency(cents, record.currencyCode, includeCode: true),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+          onTap: () {
+            if (selected) setState(() => _selectedRecordId = null);
+            _openRecord(record);
+          },
         );
       },
     );
@@ -231,11 +330,19 @@ class AnnualBillGraph extends StatelessWidget {
   final Map<int, SavedBillRecord> recordsByMonth;
   final List<String> months;
 
-  String _axisLabel(int cents) {
-    final pesos = cents ~/ 100;
-    if (pesos >= 1000000) return '₱${pesos ~/ 1000000}m';
-    if (pesos >= 10000) return '₱${pesos ~/ 1000}k';
-    return formatPhp(cents);
+  String _axisLabel(int cents, String currencyCode) {
+    final value = cents / 100;
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}m';
+    if (value >= 10000) return '${(value / 1000).toStringAsFixed(1)}k';
+    return formatCurrency(cents, currencyCode);
+  }
+
+  String _neutralAxisLabel(int cents) {
+    final value = cents / 100;
+    final whole = formatCurrency(cents, 'PHP').substring(1);
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}m';
+    if (value >= 10000) return '${(value / 1000).toStringAsFixed(1)}k';
+    return whole;
   }
 
   @override
@@ -249,6 +356,11 @@ class AnnualBillGraph extends StatelessWidget {
         return cents > value ? cents : value;
       });
       if (maximum == 0) maximum = 100;
+      final currencyCodes = recordsByMonth.values
+          .map((record) => record.currencyCode)
+          .toSet();
+      final mixedCurrencies = currencyCodes.length > 1;
+      final axisCurrency = currencyCodes.firstOrNull ?? 'PHP';
 
       final graph = Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -260,9 +372,13 @@ class AnnualBillGraph extends StatelessWidget {
               children: [
                 FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(_axisLabel(maximum)),
+                  child: Text(
+                    mixedCurrencies
+                        ? _neutralAxisLabel(maximum)
+                        : _axisLabel(maximum, axisCurrency),
+                  ),
                 ),
-                const Text('₱0'),
+                Text(mixedCurrencies ? '0' : formatCurrency(0, axisCurrency)),
               ],
             ),
           ),
@@ -273,7 +389,13 @@ class AnnualBillGraph extends StatelessWidget {
                 children: [
                   for (var month = 1; month <= 12; month++)
                     Expanded(
-                      child: _monthBar(context, month, plot.maxHeight, maximum),
+                      child: _monthBar(
+                        context,
+                        month,
+                        plot.maxHeight,
+                        maximum,
+                        mixedCurrencies,
+                      ),
                     ),
                 ],
               ),
@@ -284,10 +406,24 @@ class AnnualBillGraph extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
-            child: Text('Amount (PHP)'),
+            child: Text(
+              mixedCurrencies
+                  ? 'Amount (mixed currencies)'
+                  : 'Amount (${currencyOption(axisCurrency).code})',
+            ),
           ),
+          if (mixedCurrencies)
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Multiple currencies shown. Amounts are not converted.',
+                ),
+              ),
+            ),
           const SizedBox(height: 4),
           Expanded(
             child: scroll
@@ -307,12 +443,13 @@ class AnnualBillGraph extends StatelessWidget {
     int month,
     double availableHeight,
     int maximum,
+    bool mixedCurrencies,
   ) {
     final record = recordsByMonth[month];
     final cents = record?.snapshot['totalAmountCents'] as int?;
     final semantics = cents == null
         ? '${months[month - 1]} $year: no saved bill'
-        : '${months[month - 1]} $year: ${formatPhp(cents)}';
+        : '${months[month - 1]} $year: ${formatCurrency(cents, record!.currencyCode, includeCode: true)}';
     final barColor = Theme.of(context).colorScheme.primary;
     final height = cents == null
         ? 0.0
@@ -408,7 +545,7 @@ class SavedBillDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final card = ShareBillCardData.fromSavedRecord(record);
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text('${card.category} · ${record.assignedYear}'),
@@ -416,6 +553,7 @@ class SavedBillDetailScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Card'),
               Tab(text: 'Details'),
+              Tab(text: 'Computation'),
             ],
           ),
         ),
@@ -423,6 +561,7 @@ class SavedBillDetailScreen extends StatelessWidget {
           children: [
             _SavedCardView(data: card),
             _SavedDetailsView(record: record),
+            SavedComputationView(record: record),
           ],
         ),
       ),
@@ -496,7 +635,9 @@ class _SavedDetailsView extends StatelessWidget {
           'Billing period: ${_dateLabel(record.startDate)} – ${_dateLabel(record.endDate)}',
         ),
         Text('Assigned month: $assignedMonth'),
-        Text('Total bill: ${formatPhp(snapshot['totalAmountCents']! as int)}'),
+        Text(
+          'Total bill: ${formatCurrency(snapshot['totalAmountCents']! as int, record.currencyCode, includeCode: true)}',
+        ),
         Text('Allocation method: ${methodLabel(method)}'),
         if (snapshot['totalConsumption'] case final num consumption)
           Text(
@@ -530,7 +671,7 @@ class _SavedDetailsView extends StatelessWidget {
             Text('${occupants.length} occupant(s)'),
             const SizedBox(height: 8),
             Text(
-              'Household amount: ${formatPhp(household['amountCents']! as int)}',
+              'Household amount: ${formatCurrency(household['amountCents']! as int, record.currencyCode, includeCode: true)}',
             ),
             for (var o = 0; o < occupants.length; o++)
               _occupant(context, o, occupants[o] as Map<String, Object?>),
@@ -576,7 +717,10 @@ class _SavedDetailsView extends StatelessWidget {
                 ? 'Measured consumption: ${formatQuantity(measured)} ${category.unit}'
                 : 'Measured consumption: not specified',
           ),
-          if (cents is int) Text('Occupant amount: ${formatPhp(cents)}'),
+          if (cents is int)
+            Text(
+              'Occupant amount: ${formatCurrency(cents, record.currencyCode, includeCode: true)}',
+            ),
         ],
       ),
     );

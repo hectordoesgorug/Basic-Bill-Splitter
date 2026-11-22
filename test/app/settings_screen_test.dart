@@ -55,6 +55,7 @@ Future<void> pumpSettings(
   bool hasDraft = false,
   bool darkMode = false,
   Future<bool> Function(bool)? onDarkModeChanged,
+  Future<bool> Function(String)? onCurrencyChanged,
   VoidCallback? onReset,
 }) async {
   await tester.pumpWidget(
@@ -72,6 +73,8 @@ Future<void> pumpSettings(
                     hasActiveDraft: hasDraft,
                     darkMode: darkMode,
                     onDarkModeChanged: onDarkModeChanged ?? (_) async => true,
+                    currencyCode: 'PHP',
+                    onCurrencyChanged: onCurrencyChanged ?? (_) async => true,
                     onDataReset: onReset ?? () {},
                   ),
                 ),
@@ -128,6 +131,80 @@ void main() {
       );
     },
   );
+
+  testWidgets('currency selector exposes all options and saves the choice', (
+    tester,
+  ) async {
+    var selected = '';
+    await pumpSettings(
+      tester,
+      repository: InMemoryBillRepository(),
+      onCurrencyChanged: (code) async {
+        selected = code;
+        return true;
+      },
+    );
+    final currencyField = find.byKey(const ValueKey('settingsCurrency'));
+    await tester.scrollUntilVisible(
+      currencyField,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Changes currency labels only. No amount conversion.'),
+      findsOneWidget,
+    );
+    await tester.tap(currencyField);
+    await tester.pumpAndSettle();
+    expect(find.text('PHP (₱)'), findsAtLeastNWidgets(1));
+    await tester.tap(find.text('USD (\$)').last);
+    await tester.pumpAndSettle();
+    expect(selected, 'USD');
+    expect(
+      tester
+          .widget<DropdownButtonFormField<String>>(
+            find.byKey(const ValueKey('settingsCurrency')),
+          )
+          .initialValue,
+      'USD',
+    );
+  });
+
+  testWidgets('currency warning preserves saved denominations when cancelled', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    await repository.save(saved());
+    await pumpSettings(tester, repository: repository);
+    final field = find.byKey(const ValueKey('settingsCurrency'));
+    await tester.scrollUntilVisible(
+      field,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USD (\$)').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Some saved bills use another currency'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(
+      await repository.allRecords().then(
+        (records) => records.single.currencyCode,
+      ),
+      'PHP',
+    );
+    expect(
+      tester.widget<DropdownButtonFormField<String>>(field).initialValue,
+      'PHP',
+    );
+  });
 
   testWidgets(
     'empty backup uses the document picker without changing records',

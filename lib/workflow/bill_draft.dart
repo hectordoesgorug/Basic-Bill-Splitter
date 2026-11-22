@@ -1,4 +1,5 @@
 import '../calculation/bill_models.dart';
+import '../currency/currency.dart';
 
 enum BillCategory {
   electricity('Electricity', AllocationMethod.hybrid),
@@ -45,13 +46,7 @@ int? parsePhpCents(String input) {
   return cents.toInt();
 }
 
-String formatPhp(int cents) {
-  final whole = (cents ~/ 100).toString().replaceAllMapped(
-    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-    (match) => '${match[1]},',
-  );
-  return '₱$whole.${(cents % 100).toString().padLeft(2, '0')}';
-}
+String formatPhp(int cents) => formatCurrency(cents, 'PHP');
 
 /// Two decimal places for presentation only; never feed this back into a bill.
 /// Decimal expansion also keeps very large finite values out of exponent form.
@@ -213,7 +208,7 @@ class BillDraft {
     final errors = <String, String>{};
     if (parsePhpCents(amount) == null) {
       errors['amount'] =
-          'Enter a nonnegative PHP amount with at most 2 decimal places.';
+          'Enter a nonnegative amount with at most 2 decimal places.';
     }
     final start = parseDate(periodStart);
     final end = parseDate(periodEnd);

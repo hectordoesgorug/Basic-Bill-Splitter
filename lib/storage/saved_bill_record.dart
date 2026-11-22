@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import '../currency/currency.dart';
 import 'billing_period.dart';
 
 class SavedBillRecord {
@@ -15,6 +16,7 @@ class SavedBillRecord {
     required this.startDate,
     required this.endDate,
     required this.snapshot,
+    this.currencyCode = 'PHP',
   });
 
   static const currentSchemaVersion = 1;
@@ -29,21 +31,26 @@ class SavedBillRecord {
   final String startDate;
   final String endDate;
   final Map<String, Object?> snapshot;
+  final String currencyCode;
 
   String get uniqueKey => '$category:$assignedYear:$assignedMonth';
 
-  Map<String, Object?> toJson() => {
-    'id': id,
-    'schemaVersion': schemaVersion,
-    'category': category,
-    'assignedYear': assignedYear,
-    'assignedMonth': assignedMonth,
-    'createdAt': createdAt,
-    'updatedAt': updatedAt,
-    'startDate': startDate,
-    'endDate': endDate,
-    'snapshot': snapshot,
-  };
+  Map<String, Object?> toJson() {
+    currencyOption(currencyCode);
+    return {
+      'id': id,
+      'schemaVersion': schemaVersion,
+      'category': category,
+      'assignedYear': assignedYear,
+      'assignedMonth': assignedMonth,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'startDate': startDate,
+      'endDate': endDate,
+      'currencyCode': currencyCode,
+      'snapshot': snapshot,
+    };
+  }
 
   String encode() => jsonEncode(toJson());
 
@@ -56,6 +63,14 @@ class SavedBillRecord {
     if (version != currentSchemaVersion) {
       throw FormatException('Unsupported saved bill schema: $version');
     }
+    final rawCurrency = decoded['currencyCode'];
+    final currencyCode = decoded.containsKey('currencyCode')
+        ? rawCurrency
+        : 'PHP';
+    if (currencyCode is! String) {
+      throw const FormatException('Saved bill currency is invalid');
+    }
+    currencyOption(currencyCode);
     final snapshot = decoded['snapshot'];
     if (snapshot is! Map<String, dynamic>) {
       throw const FormatException('Saved bill snapshot is invalid');
@@ -71,6 +86,7 @@ class SavedBillRecord {
       startDate: _requiredString(decoded, 'startDate'),
       endDate: _requiredString(decoded, 'endDate'),
       snapshot: _freezeMap(snapshot),
+      currencyCode: currencyCode,
     );
     final start = _parseDate(record.startDate);
     final end = _parseDate(record.endDate);
@@ -100,6 +116,7 @@ class SavedBillRecord {
     String? id,
     String? createdAt,
     DateTime? now,
+    String currencyCode = 'PHP',
   }) {
     final start = _parseDate(startDate);
     final end = _parseDate(endDate);
@@ -109,6 +126,7 @@ class SavedBillRecord {
         assignBillingMonth(start, end) != assignedMonth) {
       throw ArgumentError('Saved bill period and assigned month must agree');
     }
+    currencyOption(currencyCode);
     final timestamp = (now ?? DateTime.now()).toUtc().toIso8601String();
     return SavedBillRecord(
       id: id ?? _newId(),
@@ -121,6 +139,7 @@ class SavedBillRecord {
       startDate: startDate,
       endDate: endDate,
       snapshot: _freezeMap(snapshot),
+      currencyCode: currencyCode,
     );
   }
 

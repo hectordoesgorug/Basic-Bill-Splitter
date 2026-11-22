@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'bill_draft.dart';
+import 'date_range_picker.dart';
 
 /// One range picker, with manual occupancy fields or a billing summary.
 class DateRangeFields extends StatefulWidget {
@@ -77,23 +78,12 @@ class _DateRangeFieldsState extends State<DateRangeFields> {
         !end.isBefore(start) &&
         !start.isBefore(first) &&
         !end.isAfter(last);
-    final selected = await showDateRangePicker(
+    final selected = await showAccessibleDateRangePicker(
       context: context,
       firstDate: first,
       lastDate: last,
+      title: widget.pickerLabel,
       initialDateRange: valid ? DateTimeRange(start: start, end: end) : null,
-      helpText: widget.pickerLabel,
-      saveText: 'Use dates',
-      // The standard header uses a non-flexible start-date label. A compact
-      // headline fits narrow screens with large text without limiting scaling.
-      builder: (context, child) => DatePickerTheme(
-        data: DatePickerTheme.of(context).copyWith(
-          rangePickerHeaderHeadlineStyle: Theme.of(context)
-              .textTheme
-              .titleMedium,
-        ),
-        child: child!,
-      ),
     );
     if (selected == null || !mounted) return;
     setState(() {

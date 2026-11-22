@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../calculation/bill_calculator.dart';
 import '../calculation/bill_models.dart';
+import '../currency/currency.dart';
 import '../app/app_menu.dart';
 import '../storage/bill_repository.dart';
 import '../storage/billing_period.dart';
@@ -24,6 +25,8 @@ class BillWorkflow extends StatefulWidget {
     required this.version,
     this.darkMode = false,
     this.onDarkModeChanged,
+    this.currencyCode = 'PHP',
+    this.onCurrencyChanged,
   });
 
   final BillDraft draft;
@@ -32,6 +35,8 @@ class BillWorkflow extends StatefulWidget {
   final Future<String?> version;
   final bool darkMode;
   final Future<bool> Function(bool enabled)? onDarkModeChanged;
+  final String currencyCode;
+  final Future<bool> Function(String code)? onCurrencyChanged;
 
   @override
   State<BillWorkflow> createState() => _BillWorkflowState();
@@ -39,6 +44,7 @@ class BillWorkflow extends StatefulWidget {
 
 class _BillWorkflowState extends State<BillWorkflow> {
   late final BillDraft _draft = widget.draft;
+  late String _currencyCode = widget.currencyCode;
   final _accentIndices = <HouseholdDraft, int>{};
   int _nextAccent = 0;
   final _scroll = ScrollController();
@@ -64,6 +70,15 @@ class _BillWorkflowState extends State<BillWorkflow> {
     'Review',
     'Results',
   ];
+
+  @override
+  void didUpdateWidget(BillWorkflow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currencyCode != widget.currencyCode &&
+        !_savedCalculationIsCurrent) {
+      _currencyCode = widget.currencyCode;
+    }
+  }
 
   @override
   void dispose() {
@@ -99,6 +114,9 @@ class _BillWorkflowState extends State<BillWorkflow> {
   }
 
   void _changed() {
+    if (_currencyCode != widget.currencyCode && !_savedCalculationIsCurrent) {
+      _currencyCode = widget.currencyCode;
+    }
     if (_step == 0) _detailsValidated = false;
     if (_step <= 1) _householdsValidated = false;
     if (_step <= 2) _usageValidated = false;
@@ -276,7 +294,10 @@ class _BillWorkflowState extends State<BillWorkflow> {
     };
   }
 
-  String _currentSignature() => jsonEncode(_currentSnapshot());
+  String _signatureFor(Map<String, Object?> snapshot) =>
+      jsonEncode({'currencyCode': _currencyCode, 'snapshot': snapshot});
+
+  String _currentSignature() => _signatureFor(_currentSnapshot());
 
   bool get _savedCalculationIsCurrent =>
       _savedRecordId != null &&
@@ -327,7 +348,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
     setState(() => _saving = true);
     try {
       final snapshot = _currentSnapshot();
-      final signature = jsonEncode(snapshot);
+      final signature = _signatureFor(snapshot);
       if (_savedCalculationIsCurrent) {
         _message('Already saved.');
         if (exitAfterSuccess && mounted) widget.onHome();
@@ -368,6 +389,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
         startDate: _draft.periodStart,
         endDate: _draft.periodEnd,
         snapshot: snapshot,
+        currencyCode: _currencyCode,
         id: _savedRecordId,
         createdAt: _savedCreatedAt,
       );
@@ -460,6 +482,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
           endDate: _draft.periodEnd,
           bill: _bill!,
           allocation: _allocation!,
+          currencyCode: _currencyCode,
         ),
       );
     } finally {
@@ -665,7 +688,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
     endError: _errors[endId],
     firstDate: billing ? null : parseDate(_draft.periodStart),
     lastDate: billing ? null : parseDate(_draft.periodEnd),
-    pickerLabel: billing ? 'Choose Billing Period' : 'Choose occupancy dates',
+    pickerLabel: billing ? 'Set Billing Period' : 'Choose occupancy dates',
     showManualFields: !billing,
     onChanged: (from, to) {
       final changed = from != start || to != end;
@@ -833,7 +856,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
     ),
     _field(
       'amount',
-      'Bill amount (PHP)',
+      'Bill amount ($_currencyCode)',
       _draft.amount,
       (text) => _draft.amount = text,
       numeric: true,
@@ -1117,7 +1140,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Occupant ${o + 1}${cents == null ? '' : ' · ${formatPhp(cents)}'}',
+          'Occupant ${o + 1}${cents == null ? '' : ' · ${formatCurrency(cents, _currencyCode)}'}',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         Text(_durationSummary(_draft.households[h].occupants[o], input)),
@@ -1140,7 +1163,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
         ),
         const SizedBox(height: 8),
         Text(
-          formatPhp(bill.totalAmountCents),
+          formatCurrency(bill.totalAmountCents, _currencyCode),
           key: const ValueKey('billTotal'),
           style: Theme.of(context).textTheme.headlineMedium,
         ),
@@ -1167,7 +1190,10 @@ class _BillWorkflowState extends State<BillWorkflow> {
         _householdSection(h, [
           if (results)
             Text(
-              formatPhp(_allocation!.households[h].amountCents),
+              formatCurrency(
+                _allocation!.households[h].amountCents,
+                _currencyCode,
+              ),
               key: ValueKey('householdTotal$h'),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
@@ -1206,6 +1232,8 @@ class _BillWorkflowState extends State<BillWorkflow> {
           confirmExit: _confirmDiscard,
           darkMode: widget.darkMode,
           onDarkModeChanged: widget.onDarkModeChanged,
+          currencyCode: _currencyCode,
+          onCurrencyChanged: widget.onCurrencyChanged,
           hasActiveDraft: true,
           onDataReset: widget.onHome,
         ),
