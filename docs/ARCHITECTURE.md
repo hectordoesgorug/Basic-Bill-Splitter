@@ -26,17 +26,17 @@ Data moves from **User Input → Draft Validation → Calculation Engine → Res
 
 | Path | Responsibility |
 | --- | --- |
-| `lib/main.dart` | App entry point, root-owned Material 3 light/dark themes, persisted appearance loading, and Home route |
+| `lib/main.dart` | App entry point, root-owned Material 3 light/dark themes, persisted appearance/currency loading, and Home route |
 | `lib/app/home_screen.dart` | Home category selection, fresh draft creation, saved-period continuity suggestion, and app shell |
 | `lib/app/app_menu.dart` | About, How to, History category selection, Settings navigation, and activity Exit |
-| `lib/app/app_platform.dart` | Android method-channel wrapper for repository access, SAF backup/restore, appearance preferences, PNG sharing, version lookup, repository link, and activity exit |
+| `lib/app/app_platform.dart` | Android method-channel wrapper for repository access, SAF backup/restore, appearance/currency preferences, PNG sharing, version lookup, repository link, and activity exit |
 | `lib/workflow/bill_draft.dart` | Transient fields, category/method defaults, parsing, date and form validation, and typed Bill construction |
 | `lib/workflow/bill_workflow.dart` | Five-step UI, validation-gated navigation, result invalidation, calculation, save/replace/exit flows, and result display |
 | `lib/workflow/date_range_fields.dart` | Billing and occupancy date selection and input |
 | `lib/workflow/household_section.dart` | Shared household grouping and presentation |
 | `lib/calculation/bill_models.dart` | Typed Bill, Household, Occupant, and immutable allocation models |
 | `lib/calculation/bill_calculator.dart` | Pure-Dart input validation, allocation, and deterministic cent reconciliation |
-| `lib/storage/bill_repository.dart` | Repository contract, platform implementation, save and replace-all result types, and in-memory test implementation |
+| `lib/storage/bill_repository.dart` | Repository contract, platform implementation, save outcomes and replace-all operations, and in-memory test implementation |
 | `lib/storage/saved_bill_record.dart` | Versioned record metadata, backward-compatible currency decoding, snapshot JSON encoding/decoding, and consistency validation |
 | `lib/currency/currency.dart` | Fixed supported-currency list, code validation, and integer-cent formatting |
 | `android/app/src/main/kotlin/com/hectordoesgorug/basic_bill_splitter/SavedBillBackup.kt` | Native version 1 ZIP creation, checksum, entry limits, and archive validation |
@@ -88,3 +88,215 @@ Android storage failures return a platform-channel error; Dart does not interpre
 | `test/app/settings_screen_test.dart` | Settings backup/restore document-channel flows, confirmations, draft reset, wipe, and preference failures |
 
 Automated repository and platform-channel tests do not establish physical-device behavior. Report Android hardware checks separately.
+
+## Workflow Presentation Details
+
+The Home footer shows Visit GitHub and the installed package version above
+system insets. It scrolls on short screens or with larger text. The platform
+channel opens the repository in an external browser and reads the installed
+version for Home and About.
+
+Billing dates use a paired calendar picker with centered OK and Cancel actions
+and a read-only `dd MMM yyyy - dd MMM yyyy` summary using English month
+abbreviations. Cancel preserves both dates. Occupancy ranges also support manual
+`YYYY-MM-DD` fields; calendars are bounded to the billing period.
+
+Household accent borders stay consistent across Households, Usage, Review, and
+Results, including after other households are added or removed. Names and nested
+occupant sections identify groups without relying on color alone.
+
+Households Clear restores one default household and occupant. Usage Clear resets
+duration and measured inputs while preserving household and bill details.
+Clear actions confirm when entered work would be discarded, and household removal
+requires confirmation. Meaningful unsaved inputs require confirmation before
+leaving the workflow. Revisiting inputs from Results also asks for confirmation;
+viewing without edits preserves the current result.
+
+Amounts are parsed directly from decimal digits into integer cents. Review and
+Results show money and continuous quantities with two decimal places, including
+trailing zeros; counts remain integers. Display formatting never changes source
+text, inputs, weights, or intermediate precision. Presentation helpers are in
+`lib/workflow/bill_draft.dart`.
+
+## Calculation engine
+
+Use `lib/calculation/bill_models.dart` for immutable bill, household, occupant,
+and result models, and `lib/calculation/bill_calculator.dart` for
+`BillCalculator.calculate`. The engine has no Flutter or third-party imports.
+
+Each bill supplies a nonnegative integer `totalAmountCents` and a list of
+participating households. Each household contains its participating occupants;
+list lengths define headcounts rather than maintaining separate counts. Every
+occupant supplies positive integer `occupancyDays` and may supply a
+`measuredConsumption`. These are inputs for this bill only.
+
+Supported methods:
+
+- `AllocationMethod.hybrid`: requires positive `totalConsumption`. The unit rate
+  is the bill amount divided by total consumption. Subtract all measured usage,
+  then distribute residual consumption by occupancy days across **all**
+  occupants, including those with measurements. An occupant's unrounded charge
+  is `rate * (measuredUsage + residualUsage * days / totalPersonDays)`, with
+  missing measured usage treated as zero. Sum these charges by household.
+- `AllocationMethod.personDays`: split the bill by each household's total
+  occupancy days divided by all participating occupancy days.
+- `AllocationMethod.equalPerHousehold`: split the bill equally among households,
+  irrespective of their occupant counts or days.
+
+The hybrid rule deliberately supersedes the owner-provided legacy
+`BillSplitter.py`, which excluded metered occupants from residual allocation.
+
+### Validation and rounding
+
+Calculation throws `ArgumentError` for empty household/occupant lists,
+nonpositive occupancy days, negative bill amounts, negative/nonfinite
+consumption, or measurements whose sum exceeds a supplied total consumption.
+Total consumption is optional for the two non-hybrid methods; measurements do
+not affect their weights, but supplied consumption values are still validated.
+Zero bills are valid. Hybrid still requires positive consumption for a valid
+unit-rate denominator.
+
+Amounts are integer cents, bounded at `2^53 - 1` for Dart web portability.
+Consumption uses one consistent unit per bill (for example kWh or cubic meters)
+and accepts finite nonnegative doubles. The engine interprets each supplied
+double's shortest decimal string exactly, using `BigInt` intermediate weights.
+Pass source decimal values directly: a precomputed `0.1 + 0.2` remains
+`0.30000000000000004`, rather than being silently adjusted with a tolerance.
+Days are explicit counts; date ranges, billing-period limits, and currency
+formatting belong to the calling workflow.
+
+No individual charge is rounded before household aggregation. Household shares
+are floored to cents, then leftover cents go to the largest fractional
+remainders; ties favor household input order. Returned allocations preserve
+that order and the original household objects, so duplicate display labels
+remain distinct. Household amounts always sum to the original bill.
+
+For hybrid and person-days, each `HouseholdAllocation.occupants` contains
+immutable `OccupantAllocation` results in occupant input order. Once household
+cents are reconciled, the engine distributes those cents within each household
+using the same exact occupant weights and largest-remainder rule, with ties
+favoring occupant input order. Occupant cents sum to household cents, including
+zero-usage households and bills smaller than the number of occupants.
+For equal-per-household, `occupants` is null because that method defines no
+individual monetary allocation.
+
+### Example
+
+```dart
+import 'package:basic_bill_splitter/calculation/bill_calculator.dart';
+import 'package:basic_bill_splitter/calculation/bill_models.dart';
+
+final bill = Bill(
+  totalAmountCents: 10000,
+  totalConsumption: 100,
+  households: [
+    Household(
+      name: 'A',
+      occupants: [
+        Occupant(occupancyDays: 30, measuredConsumption: 20),
+      ],
+    ),
+    Household(name: 'B', occupants: [Occupant(occupancyDays: 10)]),
+  ],
+);
+final result = const BillCalculator().calculate(
+  bill,
+  method: AllocationMethod.hybrid,
+);
+// A: 8000 cents; B: 2000 cents; total: 10000 cents.
+```
+
+## Verification
+
+Run these commands from the repository root. See [Progress](PROGRESS.md) for
+historical results and pending release-candidate checks.
+
+```text
+dart format lib test
+flutter analyze
+flutter test
+flutter build apk --debug
+git diff --check
+```
+
+Calculation and occupant reconciliation tests are in
+`test/calculation/bill_calculator_test.dart`. Draft parsing, duration and
+validation tests are in `test/workflow/bill_draft_test.dart`.
+`test/widget_test.dart` covers Home category defaults, method overrides, menus,
+native-channel calls, discard confirmation, navigation, form validation,
+engine integration, household accent stability, and narrow layouts with larger
+text in light and dark themes. `test/workflow/date_range_fields_test.dart`
+covers paired calendar selection, editing, cancellation, and manual input.
+Native-channel mocks verify Flutter calls and error presentation; they do not
+prove that a physical browser opens or an Android activity exits correctly.
+
+Automated widget tests do not establish physical-device keyboard, system-bar,
+rotation, or accessibility behavior. Device checks should be reported
+separately from the automated suite.
+
+### Optional local regression fixture
+
+`test/calculation/private_bill_regression_test.dart` loads
+`test/fixtures/private/bill_regression.json`. The entire private fixture
+directory is ignored by Git. Keep real bill data, participant names, and any
+original photographs out of tracked source, documentation, and GitHub.
+
+The JSON contains `method` (an `AllocationMethod` enum name),
+`totalAmountCents`, optional `totalConsumption`, `periodDays`, and a
+`households` list. Each household has a `name` and an `occupants` list with
+`occupancyDays` and optional `measuredConsumption`. The `expected` object
+provides `householdCents` and flattened `occupantCents` arrays in input order,
+plus `totalAmountCents` and `personDays`. Additional descriptive metadata is
+not used as a calculation input.
+
+The runner checks expected allocations and exact occupant, household, and bill
+reconciliation without printing private values in assertion failures. Invalid
+or unreadable fixtures fail with a generic diagnostic; inspect the local JSON
+to investigate. If the fixture is absent, the test is explicitly **skipped**,
+not passed. The public suite remains runnable without it.
+
+Set the process environment variable `BILL_SPLITTER_PRIVATE_FIXTURE` to use
+another local fixture path; keep sensitive fixtures inside the ignored
+directory. For example, this PowerShell command checks missing-fixture behavior
+without moving or deleting an existing fixture:
+
+```powershell
+$env:BILL_SPLITTER_PRIVATE_FIXTURE = 'test/fixtures/private/not-supplied.json'
+flutter test
+Remove-Item Env:BILL_SPLITTER_PRIVATE_FIXTURE
+```
+
+Before sharing changes, use `git check-ignore -v -- test/fixtures/private/bill_regression.json`
+and Git status to confirm the private data remains excluded. Never force-add
+private fixture contents.
+
+
+## Build Configuration and Fresh Checkouts
+
+`pubspec.lock` records resolved packages; `pubspec.yaml` keeps the Dart SDK
+constraint at `^3.14.0`. The local resolved package configuration inspected during
+repository review records Flutter 3.50.0 and Dart 3.14.0. The repository does not
+pin an exact Flutter SDK revision. Record the SDK revision and Java/Android
+toolchain when preparing a release candidate.
+
+Android configuration declares AGP 9.3.1, Kotlin plugin 2.4.20, and Gradle 9.5.0.
+Java source/target and Kotlin JVM target are 17. Compile/minimum/target Android
+SDK and NDK versions come from the selected Flutter SDK rather than fixed values
+in the app build file. These settings do not establish tested device coverage.
+
+The tracked `android/gradle/wrapper/gradle-wrapper.properties` selects the Gradle
+distribution, but `android/.gitignore` excludes `gradlew`, `gradlew.bat`, and
+`gradle-wrapper.jar`. A fresh checkout therefore cannot directly run those
+scripts. The inspected local Flutter tooling (`GradleUtils.getExecutable` and
+`injectGradleWrapperIfNeeded`) copies missing wrapper components from the
+Flutter cache before invoking Gradle. This explains the current Flutter build
+path; it is not evidence of a successful fresh-checkout build.
+
+Before release, verify a separate fresh checkout with the recorded Flutter SDK
+and dependency lockfile. Decide whether to retain Flutter-managed wrapper
+bootstrapping or explicitly track wrapper components. Do not regenerate the
+platform project merely to obtain them. Local SDK paths, signing properties,
+keystores, caches, private fixtures, and generated outputs remain excluded.
+
+The release build currently uses debug signing. A production signing strategy
+and signer verification are required before distributing a release APK.
