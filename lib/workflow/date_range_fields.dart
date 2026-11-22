@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'bill_draft.dart';
 
-/// One range picker with manual fields retained as an alternative.
+/// One range picker, with manual occupancy fields or a billing summary.
 class DateRangeFields extends StatefulWidget {
   const DateRangeFields({
     super.key,
@@ -19,6 +19,7 @@ class DateRangeFields extends StatefulWidget {
     this.firstDate,
     this.lastDate,
     this.pickerLabel = 'Choose occupancy dates',
+    this.showManualFields = true,
   });
 
   final String id;
@@ -33,6 +34,7 @@ class DateRangeFields extends StatefulWidget {
   final DateTime? firstDate;
   final DateTime? lastDate;
   final String pickerLabel;
+  final bool showManualFields;
   final void Function(String start, String end) onChanged;
 
   @override
@@ -121,6 +123,26 @@ class _DateRangeFieldsState extends State<DateRangeFields> {
     ),
   );
 
+  String _displayDate(String input) {
+    final date = parseDate(input);
+    if (date == null) return 'Not selected';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]} ${date.year.toString().padLeft(4, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -132,8 +154,27 @@ class _DateRangeFieldsState extends State<DateRangeFields> {
         label: Text(widget.pickerLabel),
       ),
       const SizedBox(height: 16),
-      _field(widget.startId, widget.startLabel, _start, widget.startError),
-      _field(widget.endId, widget.endLabel, _end, widget.endError),
+      if (widget.showManualFields) ...[
+        _field(widget.startId, widget.startLabel, _start, widget.startError),
+        _field(widget.endId, widget.endLabel, _end, widget.endError),
+      ] else ...[
+        Semantics(
+          label: 'Billing period',
+          child: Text(
+            '${_displayDate(_start.text)} - ${_displayDate(_end.text)}',
+            key: ValueKey('${widget.id}.summary'),
+          ),
+        ),
+        if (widget.startError != null || widget.endError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              [widget.startError, widget.endError].nonNulls.join(' '),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
     ],
   );
 }

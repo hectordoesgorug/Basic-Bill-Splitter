@@ -77,6 +77,7 @@ class AppMenu extends StatelessWidget {
   Widget build(BuildContext context) => PopupMenuButton<String>(
     key: const ValueKey('appMenu'),
     tooltip: 'Menu',
+    icon: const Icon(Icons.menu),
     onSelected: (action) => _select(context, action),
     itemBuilder: (context) => const [
       PopupMenuItem(value: 'about', child: Text('About')),

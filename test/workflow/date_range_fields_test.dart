@@ -8,6 +8,7 @@ void main() {
     WidgetTester tester, {
     String start = '2026-11-02',
     String end = '2026-11-04',
+    bool showManualFields = true,
   }) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
@@ -26,6 +27,7 @@ void main() {
                 valueListenable: values,
                 builder: (context, pair, child) => DateRangeFields(
                   id: 'range',
+                  showManualFields: showManualFields,
                   startId: 'start',
                   endId: 'end',
                   start: pair.$1,
@@ -55,6 +57,52 @@ void main() {
     await tester.tap(find.text(end).first);
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'billing summary is read-only, accessible and updates after edits',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        final values = await pumpRange(tester, showManualFields: false);
+        expect(find.byType(TextFormField), findsNothing);
+        final summary = find.byKey(const ValueKey('range.summary'));
+        expect(tester.widget<Text>(summary).data, '02 Nov 2026 - 04 Nov 2026');
+        expect(
+          tester.getSemantics(summary),
+          matchesSemantics(
+            label: 'Billing period\n02 Nov 2026 - 04 Nov 2026',
+            textDirection: TextDirection.ltr,
+          ),
+        );
+        await open(tester);
+        await choose(tester, '10', '12');
+        await tester.tap(find.text('Use dates'));
+        await tester.pumpAndSettle();
+        expect(values.value, ('2026-11-10', '2026-11-12'));
+        expect(find.text('10 Nov 2026 - 12 Nov 2026'), findsOneWidget);
+        await open(tester);
+        final dialog = tester.widget<DateRangePickerDialog>(
+          find.byType(DateRangePickerDialog),
+        );
+        expect(dialog.initialDateRange!.start, DateTime(2026, 11, 10));
+        expect(dialog.initialDateRange!.end, DateTime(2026, 11, 12));
+        await choose(tester, '14', '14');
+        await tester.tap(find.text('Use dates'));
+        await tester.pumpAndSettle();
+        expect(values.value, ('2026-11-14', '2026-11-14'));
+        expect(find.text('14 Nov 2026 - 14 Nov 2026'), findsOneWidget);
+        await open(tester);
+        await choose(tester, '16', '17');
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        expect(values.value, ('2026-11-14', '2026-11-14'));
+        expect(find.text('14 Nov 2026 - 14 Nov 2026'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
 
   testWidgets('one calendar selects both dates and edits the existing pair', (
     tester,

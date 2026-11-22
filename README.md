@@ -5,14 +5,14 @@
 A Material 3 Flutter app for splitting one residential bill at a time. The
 interface uses the pure-Dart calculation engine and keeps a single in-memory
 draft while navigating between steps. Android is the primary target. The launcher
-and app bar use the short name **Splitter**; the full product name remains
+uses the short name **Splitter**; the full product name remains
 Basic Bill Splitter.
 
 ## Calculation workflow
 
 Start on Home, which displays the project banner and six bill buttons:
-Electricity, Water, Internet, Rent, LPG, and Misc. Each button starts a new draft
-with the category's default allocation method.
+Electricity, Water, Internet, Rent, LPG, and Misc, each with a Material icon.
+Each button starts a new draft with the category's default allocation method.
 
 1. **Bill Details** — check the selected category, choose the allocation method,
    enter the PHP amount and inclusive billing period, and supply total consumption
@@ -43,10 +43,12 @@ format; headcounts and occupancy-day counts remain integers. Display rounding
 never changes the original entry text, calculator inputs, weights, or
 intermediate precision.
 Reusable presentation helpers are in `lib/workflow/bill_draft.dart`.
-Dates accept manual `YYYY-MM-DD` entry or a single start/end date-range calendar.
-Each billing period and individual occupancy range has its own picker. Confirming
-updates the pair; cancelling preserves the entered text. Occupancy calendars are
-limited to the billing period, and multiple separate ranges remain supported.
+Choose Billing Period opens one start/end date-range calendar. The read-only
+summary below it uses `dd MMM yyyy - dd MMM yyyy` with English month abbreviations;
+billing dates have no separate editable fields. Confirming updates the pair,
+and cancelling preserves the selected dates. Individual occupancy ranges retain
+both their calendar picker and manual `YYYY-MM-DD` fields. Occupancy calendars
+are limited to the billing period, and multiple separate ranges remain supported.
 Field errors prevent advancing until corrected; aggregate measured usage is
 validated by the engine before Review.
 
@@ -63,13 +65,24 @@ increasing a headcount retains the inactive occupant entries within this draft.
 Household removal requires confirmation. The draft is not restored after process
 termination.
 
-The upper-right menu provides About, How to, and Exit. History and Settings are
+A hamburger menu at the upper left provides About, How to, and Exit. The app bars
+have no visible title; the banner and step headings identify the screens.
+Workflow Back and Home actions remain available. History and Settings are
 disabled and marked Coming soon; neither has persistence or a feature screen.
 Exit uses Android activity navigation and confirms before discarding entered work.
-Home includes Visit GitHub, which opens the repository in an external browser.
+The Home footer places Visit GitHub and the app version near the bottom of the
+visible screen, above system insets. It scrolls with the page on shorter displays
+or with larger text. Visit GitHub opens the repository in an external browser.
 An Android platform channel handles that link and reads the installed package
 version for Home and About, keeping the displayed version consistent with the
 Flutter build metadata. No additional dependency or permission is needed.
+
+The locally bundled black and white GitHub Invertocat PNGs come unchanged from
+[GitHub's official logo download](https://brand.github.com/GitHub_Logos.zip).
+They appear only beside the repository link, with clear space and theme-appropriate
+contrast, following the [GitHub logo guidelines](https://brand.github.com/foundations/logo).
+GitHub and the Invertocat mark are trademarks of GitHub, Inc.; the link does not
+imply sponsorship or endorsement.
 
 The entry point is `lib/main.dart`. `lib/app/` contains Home, the shared menu,
 and the Android platform-channel wrapper. `lib/workflow/bill_workflow.dart`

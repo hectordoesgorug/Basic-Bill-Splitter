@@ -91,6 +91,21 @@ void main() {
         'Version $version',
       );
       final button = find.byKey(ValueKey('billType-${category.name}'));
+      final icon = tester.widget<Icon>(
+        find.descendant(of: button, matching: find.byType(Icon)),
+      );
+      expect(
+        icon.icon,
+        {
+          BillCategory.electricity: Icons.bolt,
+          BillCategory.water: Icons.water_drop,
+          BillCategory.internet: Icons.wifi,
+          BillCategory.rent: Icons.home,
+          BillCategory.lpg: Icons.local_fire_department,
+          BillCategory.miscellaneous: Icons.more_horiz,
+        }[category],
+      );
+      expect(icon.size, 24);
       await tester.ensureVisible(button);
       await tester.tap(button);
       await tester.pumpAndSettle();
@@ -138,6 +153,126 @@ void main() {
         nativeCalls.where((call) => call.method == 'getVersion'),
         hasLength(1),
       );
+    },
+  );
+
+  testWidgets('footer stays at the bottom above the system navigation inset', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1000);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 24);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    final versionLabel = find.byKey(const ValueKey('appVersion'));
+    expect(tester.getBottomRight(versionLabel).dy, closeTo(956, 1));
+    final lastButton = find.byKey(const ValueKey('billType-miscellaneous'));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('homeFooter'))).dy,
+      greaterThan(tester.getBottomRight(lastButton).dy + 100),
+    );
+    expect(
+      tester.getBottomRight(find.byKey(const ValueKey('visitGitHub'))).dy,
+      lessThan(tester.getTopLeft(versionLabel).dy),
+    );
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('githubMark')),
+    );
+    expect(
+      (image.image as AssetImage).assetName,
+      'assets/github-mark-black.png',
+    );
+    expect(image.excludeFromSemantics, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'footer scrolls into view with large text on a short dark screen',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 600);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(bottom: 24);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPadding);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final versionLabel = find.byKey(const ValueKey('appVersion'));
+      expect(tester.getBottomRight(versionLabel).dy, greaterThan(600));
+      await tester.ensureVisible(versionLabel);
+      await tester.pumpAndSettle();
+      expect(tester.getBottomRight(versionLabel).dy, lessThanOrEqualTo(576));
+      final link = find.byKey(const ValueKey('visitGitHub'));
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(
+        nativeCalls.where((call) => call.method == 'openRepository'),
+        hasLength(1),
+      );
+      final mark = tester.widget<Image>(
+        find.byKey(const ValueKey('githubMark')),
+      );
+      expect(
+        (mark.image as AssetImage).assetName,
+        'assets/github-mark-white.png',
+      );
+      expect(find.text('Version $version'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'left hamburger and title-free bars preserve workflow navigation',
+    (tester) async {
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+      void checkBar() {
+        expect(tester.widget<AppBar>(find.byType(AppBar)).title, isNull);
+        expect(find.text('Splitter'), findsNothing);
+        expect(find.byIcon(Icons.menu), findsOneWidget);
+        expect(find.byIcon(Icons.more_vert), findsNothing);
+        expect(find.byTooltip('Menu'), findsOneWidget);
+        final menu = find.byKey(const ValueKey('appMenu'));
+        expect(tester.getCenter(menu).dx, lessThan(56));
+        expect(tester.getCenter(menu).dy, lessThan(80));
+      }
+
+      checkBar();
+      await tester.tap(find.byKey(const ValueKey('billType-electricity')));
+      await tester.pumpAndSettle();
+      checkBar();
+      expect(find.byTooltip('Home'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Choose a bill type'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('billType-water')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('How to'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('1. Bill Details'), findsOneWidget);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Choose a bill type'), findsOneWidget);
+      checkBar();
     },
   );
 
@@ -250,6 +385,8 @@ void main() {
         find.byType(DateRangePickerDialog),
       );
       expect(dialog.initialDateRange!.start, DateTime(2026, 11, 1));
+      expect(find.byKey(const ValueKey('periodStart')), findsNothing);
+      expect(find.byKey(const ValueKey('periodEnd')), findsNothing);
       await tester.tap(find.text('3').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('20').first);
@@ -259,6 +396,27 @@ void main() {
       expect(draft.periodStart, '2026-11-03');
       expect(draft.periodEnd, '2026-11-20');
       expect(draft.periodDays, 18);
+      expect(find.text('03 Nov 2026 - 20 Nov 2026'), findsOneWidget);
+      await next(tester);
+      await back(tester);
+      expect(find.text('03 Nov 2026 - 20 Nov 2026'), findsOneWidget);
+      await tester.ensureVisible(billing);
+      await tester.tap(billing);
+      await tester.pumpAndSettle();
+      dialog = tester.widget<DateRangePickerDialog>(
+        find.byType(DateRangePickerDialog),
+      );
+      expect(dialog.initialDateRange!.start, DateTime(2026, 11, 3));
+      expect(dialog.initialDateRange!.end, DateTime(2026, 11, 20));
+      await tester.tap(find.text('10').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('12').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text('03 Nov 2026 - 20 Nov 2026'), findsOneWidget);
+      expect(draft.periodStart, '2026-11-03');
+      expect(draft.periodEnd, '2026-11-20');
       await next(tester);
       await next(tester);
       await select(tester, 'h0.o0.mode', 'Date ranges');
@@ -505,7 +663,8 @@ void main() {
   testWidgets('app opens Home with Material 3', (tester) async {
     await tester.pumpWidget(const MyApp());
     expect(find.text('Choose a bill type'), findsOneWidget);
-    expect(find.text('Splitter'), findsOneWidget);
+    expect(find.text('Splitter'), findsNothing);
+    expect(tester.widget<AppBar>(find.byType(AppBar)).title, isNull);
     expect(
       Theme.of(tester.element(find.byType(HomeScreen))).useMaterial3,
       isTrue,
@@ -517,9 +676,9 @@ void main() {
   testWidgets('bill details reject invalid fields before continuing', (
     tester,
   ) async {
-    await pumpDraft(tester, validDraft());
+    final draft = validDraft()..periodEnd = '2026-10-01';
+    await pumpDraft(tester, draft);
     await enter(tester, 'amount', '1.999');
-    await enter(tester, 'periodEnd', '2026-10-01');
     await enter(tester, 'consumption', '0');
     await next(tester);
     expect(find.text('Bill Details'), findsOneWidget);

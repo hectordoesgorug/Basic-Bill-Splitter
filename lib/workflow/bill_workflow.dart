@@ -238,7 +238,8 @@ class _BillWorkflowState extends State<BillWorkflow> {
     endError: _errors[endId],
     firstDate: billing ? null : parseDate(_draft.periodStart),
     lastDate: billing ? null : parseDate(_draft.periodEnd),
-    pickerLabel: billing ? 'Choose billing period' : 'Choose occupancy dates',
+    pickerLabel: billing ? 'Choose Billing Period' : 'Choose occupancy dates',
+    showManualFields: !billing,
     onChanged: (from, to) {
       update(from, to);
       if (_errors.containsKey(startId) || _errors.containsKey(endId)) {
@@ -610,20 +611,19 @@ class _BillWorkflowState extends State<BillWorkflow> {
     },
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Splitter'),
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: _back,
-          icon: const Icon(Icons.arrow_back),
-        ),
+        leading: AppMenu(version: widget.version, confirmExit: _confirmDiscard),
         actions: [
+          IconButton(
+            tooltip: 'Back',
+            onPressed: _back,
+            icon: const Icon(Icons.arrow_back),
+          ),
           IconButton(
             key: const ValueKey('goHome'),
             tooltip: 'Home',
             onPressed: _returnHome,
             icon: const Icon(Icons.home_outlined),
           ),
-          AppMenu(version: widget.version, confirmExit: _confirmDiscard),
         ],
       ),
       body: SafeArea(
