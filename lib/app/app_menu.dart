@@ -60,9 +60,10 @@ class AppMenu extends StatelessWidget {
             'Households — name each household and set its 0–10 headcount with the stepper. Zero is selectable, but continuing requires 1–10 occupants per household. Clear resets households to one default household and occupant.\n\n'
             'Usage — enter optional measured usage and choose manual days, Full Period, or non-overlapping date ranges. Clear resets all usage and duration inputs while preserving household and bill details.\n\n'
             'Review — check inputs and Calculate to recompute.\n\n'
-            'Results — view reconciled household and applicable occupant amounts. Revisiting inputs asks for confirmation; editing requires calculating again. Save and Share are unavailable. Exit returns Home with discard confirmation when needed.\n\n'
+            'Results — view reconciled household and applicable occupant amounts. Revisiting inputs asks for confirmation; editing requires calculating again. Save stores the result on this device. Share remains unavailable. Exit offers Save & Exit, Exit Without Saving, or Cancel when needed.\n\n'
+            'Saved bills are kept in app-private storage, one per category and assigned month. A bill belongs to the month with the most covered days; ties go to the later month. Replacing a saved bill requires confirmation. New drafts propose a period after the latest saved bill of that category. Overlapping periods show a warning, but calculation can continue.\n\n'
             'Hybrid charges measured usage, then shares remaining usage among all occupants by person-days, including metered occupants. Person-days splits by occupancy duration. Equal per household does not assign individual monetary shares.\n\n'
-            'Drafts remain in memory only. History and Settings are unavailable.',
+            'Drafts are not restored after the app closes. History, Share, ZIP Backup/Restore, and Settings are unavailable.',
           ),
         );
       case 'exit':

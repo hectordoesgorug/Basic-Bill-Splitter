@@ -16,11 +16,11 @@ Each button starts a new draft with the category's default allocation method.
 
 Five tabs—**Details**, **Households**, **Usage**, **Review**, and **Results**—show workflow progress. A tab becomes available only after its preceding step validates; available earlier tabs can be revisited directly.
 
-1. **Details** — check the selected category, choose the allocation method, enter the PHP amount and inclusive billing period, and supply total consumption for hybrid.
+1. **Details** — check the selected category, choose the allocation method, enter the PHP amount and inclusive billing period, and supply total consumption for hybrid. When saved bills exist for that category, a new draft proposes the day after the latest saved period and a calendar-month period.
 2. **Households** — name households and set each headcount with the minus/value/plus stepper (0–10). Zero is selectable for editing, but each participating household must have 1–10 occupants to continue. Clear resets this section to one default household and occupant.
 3. **Usage** — optionally enter measured usage and choose manual days, Full Period, or date ranges. Manual days must fit the billing period; ranges must be inside it and cannot overlap for the same occupant, including shared endpoints. Clear resets usage and duration fields while preserving household and bill details.
 4. **Review** — inspect the bill, household, and occupant inputs. Calculate recomputes from the current validated draft.
-5. **Results** — view household totals and, for hybrid/person-days, reconciled occupant amounts. Equal-per-household shows occupant inputs without inventing individual monetary shares. Save and Share are disabled; Exit returns Home after the existing discard confirmation.
+5. **Results** — view household totals and, for hybrid/person-days, reconciled occupant amounts. Equal-per-household shows occupant inputs without inventing individual monetary shares. Save stores the current calculation on this Android device; Share remains disabled. Exit offers Save & Exit, Exit Without Saving, and Cancel when the current calculation is unsaved or changed.
 
 Category defaults are Electricity and Water → hybrid; Internet, Rent and LPG →
 person-days; Miscellaneous → equal per household. Selecting a category applies
@@ -49,12 +49,11 @@ Review, and Results. Prominent names and nested occupant sections identify each
 group without relying on color alone. Accents remain assigned to the same
 household when other households are removed or added.
 
-Available tabs and Back navigation preserve the in-memory draft. Revisiting an input from Results asks for confirmation; simply viewing inputs keeps the current results, while editing requires a new calculation. Clear actions confirm when they would discard entered values. Reducing and increasing a headcount retains inactive occupant entries until Clear is used. Household removal requires confirmation. Leaving Home with meaningful inputs also requires confirmation. The draft is not restored after process termination.
+Available tabs and Back navigation preserve the in-memory draft. Revisiting an input from Results asks for confirmation; simply viewing inputs keeps the current results, while editing requires a new calculation. Clear actions confirm when they would discard entered values. Reducing and increasing a headcount retains inactive occupant entries until Clear is used. Household removal requires confirmation. Leaving Home with meaningful unsaved inputs also requires confirmation. Drafts are not restored after process termination.
 
-A hamburger menu at the upper left provides About, How to, and Exit. The app bars
-have no visible title; the banner and step headings identify the screens.
-Workflow Back and Home actions remain available. Save, Share, History, and Settings are unavailable; History and Settings remain marked Coming soon. No persistence or sharing feature is implemented.
-Exit uses Android activity navigation and confirms before discarding entered work.
+Saved calculations are stored in an app-private, versioned SQLite database on Android. A saved record is assigned to the calendar month containing the greatest number of billing-period days; ties go to the later month. Only one record per category and assigned month can be saved. Replacing a conflicting bill requires confirmation. Saving an unchanged calculation does not create a duplicate. If a saved result is edited and recalculated, Save updates that record; changing its assigned month moves it, and a destination conflict also requires confirmation. Database failures leave the current calculation available and report an error.
+
+New drafts propose the next billing period from the latest saved end date for that category. Manually confirmed periods that overlap another saved period of the same category show a warning, but users may continue. Save is active on Results; Share, History, Settings, and ZIP Backup/Restore are not implemented. History and Settings remain marked Coming soon. The Results Exit action returns Home and offers Save & Exit, Exit Without Saving, or Cancel when needed. The app-menu Exit command closes the Android activity.
 The Home footer places Visit GitHub and the app version near the bottom of the
 visible screen, above system insets. It scrolls with the page on shorter displays
 or with larger text. Visit GitHub opens the repository in an external browser.

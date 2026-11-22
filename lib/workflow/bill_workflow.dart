@@ -1,8 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../calculation/bill_calculator.dart';
 import '../calculation/bill_models.dart';
 import '../app/app_menu.dart';
+import '../storage/bill_repository.dart';
+import '../storage/billing_period.dart';
+import '../storage/saved_bill_record.dart';
 import 'bill_draft.dart';
 import 'date_range_fields.dart';
 import 'household_section.dart';
@@ -11,11 +17,13 @@ class BillWorkflow extends StatefulWidget {
   const BillWorkflow({
     super.key,
     required this.draft,
+    required this.repository,
     required this.onHome,
     required this.version,
   });
 
   final BillDraft draft;
+  final BillRepository repository;
   final VoidCallback onHome;
   final Future<String?> version;
 
@@ -35,6 +43,12 @@ class _BillWorkflowState extends State<BillWorkflow> {
   bool _usageValidated = false;
   Bill? _bill;
   BillAllocation? _allocation;
+  String? _savedRecordId;
+  String? _savedCreatedAt;
+  String? _savedSignature;
+  bool _saving = false;
+  int _overlapRequest = 0;
+  String? _acknowledgedOverlap;
 
   static const _titles = [
     'Bill Details',
@@ -86,7 +100,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
   }
 
   Future<void> _selectTab(int step) async {
-    if (!_canVisit(step)) return;
+    if (_saving || !_canVisit(step)) return;
     if (_step == 4 && step < 4) {
       final confirmed = await _confirm(
         'Revisit calculation?',
@@ -99,6 +113,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
   }
 
   Future<void> _back() async {
+    if (_saving) return;
     if (_step == 4) {
       await _selectTab(3);
     } else if (_step > 0) {
@@ -195,7 +210,8 @@ class _BillWorkflowState extends State<BillWorkflow> {
       false;
 
   Future<bool> _confirmDiscard() async {
-    if (!_draft.hasMeaningfulInputs) return true;
+    if (_saving) return false;
+    if (_savedCalculationIsCurrent || !_draft.hasMeaningfulInputs) return true;
     return _confirm(
       'Discard this calculation?',
       'Leave this calculation and discard its unsaved inputs and results?',
@@ -203,10 +219,283 @@ class _BillWorkflowState extends State<BillWorkflow> {
     );
   }
 
+  Map<String, Object?> _currentSnapshot() {
+    final bill = _bill!;
+    final allocation = _allocation!;
+    return {
+      'category': _draft.category.name,
+      'totalAmountCents': bill.totalAmountCents,
+      'billingStart': _draft.periodStart,
+      'billingEnd': _draft.periodEnd,
+      'allocationMethod': _draft.method.name,
+      'totalConsumption': bill.totalConsumption,
+      'draftTotalConsumption': _draft.consumption,
+      'households': [
+        for (var h = 0; h < bill.households.length; h++)
+          {
+            'name': bill.households[h].name,
+            'occupantCount': bill.households[h].occupants.length,
+            'amountCents': allocation.households[h].amountCents,
+            'occupants': [
+              for (var o = 0; o < bill.households[h].occupants.length; o++)
+                {
+                  'occupancyDays':
+                      bill.households[h].occupants[o].occupancyDays,
+                  'measuredConsumption':
+                      bill.households[h].occupants[o].measuredConsumption,
+                  'draftMeasured': _draft.households[h].occupants[o].measured,
+                  'mode': _draft.households[h].occupants[o].mode.name,
+                  'manualDays':
+                      _draft.households[h].occupants[o].mode ==
+                          OccupancyMode.manualDays
+                      ? _draft.households[h].occupants[o].days
+                      : null,
+                  'ranges':
+                      _draft.households[h].occupants[o].mode ==
+                          OccupancyMode.dateRanges
+                      ? [
+                          for (final range
+                              in _draft.households[h].occupants[o].ranges)
+                            {'start': range.start, 'end': range.end},
+                        ]
+                      : const [],
+                  'amountCents': allocation.households[h].occupants == null
+                      ? null
+                      : allocation.households[h].occupants![o].amountCents,
+                },
+            ],
+          },
+      ],
+    };
+  }
+
+  String _currentSignature() => jsonEncode(_currentSnapshot());
+
+  bool get _savedCalculationIsCurrent =>
+      _savedRecordId != null &&
+      _savedSignature != null &&
+      _allocation != null &&
+      _savedSignature == _currentSignature();
+
+  void _message(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _monthLabel(int year, int month) {
+    const names = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${names[month - 1]} $year';
+  }
+
+  Future<bool> _confirmReplacement(SavedBillRecord existing) {
+    final category = BillCategory.values
+        .firstWhere((value) => value.name == existing.category)
+        .label;
+    return _confirm(
+      'Replace existing bill?',
+      'A bill for $category in ${_monthLabel(existing.assignedYear, existing.assignedMonth)} is already saved. Replacing it will permanently overwrite the existing bill details and calculations. This action cannot be undone.',
+      'Replace',
+    );
+  }
+
+  Future<void> _save({bool exitAfterSuccess = false}) async {
+    if (_saving) return;
+    if (_bill == null || _allocation == null || !_canVisit(4)) {
+      _message('Calculate this bill again before saving.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final snapshot = _currentSnapshot();
+      final signature = jsonEncode(snapshot);
+      if (_savedCalculationIsCurrent) {
+        _message('Already saved.');
+        if (exitAfterSuccess && mounted) widget.onHome();
+        return;
+      }
+
+      final start = parseDate(_draft.periodStart);
+      final end = parseDate(_draft.periodEnd);
+      if (start == null || end == null || end.isBefore(start)) {
+        _message('The billing period is invalid. Correct it before saving.');
+        return;
+      }
+      final assigned = assignBillingMonth(start, end);
+      final existing = await widget.repository.find(
+        _draft.category.name,
+        assigned.year,
+        assigned.month,
+      );
+      if (!mounted) return;
+
+      final mustConfirm = existing != null
+          ? existing.id != _savedRecordId || signature != _savedSignature
+          : _savedRecordId != null && signature != _savedSignature;
+      if (mustConfirm) {
+        final confirmed = existing != null
+            ? await _confirmReplacement(existing)
+            : await _confirm(
+                'Update saved bill?',
+                'This saved calculation has changed. Updating it will replace its previously saved details and calculations.',
+                'Update',
+              );
+        if (!confirmed || !mounted) return;
+      }
+
+      final candidate = SavedBillRecord.create(
+        category: _draft.category.name,
+        assignedMonth: assigned,
+        startDate: _draft.periodStart,
+        endDate: _draft.periodEnd,
+        snapshot: snapshot,
+        id: _savedRecordId,
+        createdAt: _savedCreatedAt,
+      );
+      var result = await widget.repository.save(
+        candidate,
+        movingRecordId: _savedRecordId,
+        replaceRecordId: mustConfirm ? existing?.id : null,
+      );
+      if (!mounted) return;
+      if (result.conflict case final conflict?) {
+        if (!await _confirmReplacement(conflict) || !mounted) return;
+        result = await widget.repository.save(
+          candidate,
+          movingRecordId: _savedRecordId,
+          replaceRecordId: conflict.id,
+        );
+      }
+      if (!result.succeeded) {
+        _message(
+          'A saved bill changed while saving. Review the conflict and retry.',
+        );
+        return;
+      }
+      final saved = result.record!;
+      _savedRecordId = saved.id;
+      _savedCreatedAt = saved.createdAt;
+      _savedSignature = signature;
+      _message('Bill saved successfully.');
+      if (exitAfterSuccess && mounted) widget.onHome();
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'The bill could not be saved. Your calculation is still available; try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _exitResults() async {
+    if (_savedCalculationIsCurrent) {
+      widget.onHome();
+      return;
+    }
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Save before exiting?'),
+        content: const Text(
+          'This calculation has not been saved, or has changed since it was saved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('Exit Without Saving'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text('Save & Exit'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'discard') {
+      widget.onHome();
+    } else if (action == 'save') {
+      await _save(exitAfterSuccess: true);
+    }
+  }
+
   Future<void> _returnHome() async {
     if (!await _confirmDiscard() || !mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
     widget.onHome();
+  }
+
+  Future<void> _warnForOverlap(String start, String end) async {
+    final request = ++_overlapRequest;
+    final parsedStart = parseDate(start);
+    final parsedEnd = parseDate(end);
+    if (parsedStart == null ||
+        parsedEnd == null ||
+        parsedEnd.isBefore(parsedStart)) {
+      return;
+    }
+    final key = '${_draft.category.name}:$start:$end';
+    if (_acknowledgedOverlap == key) return;
+    try {
+      final overlaps = await widget.repository.overlapping(
+        category: _draft.category.name,
+        startDate: start,
+        endDate: end,
+        excludeId: _savedRecordId,
+      );
+      if (!mounted ||
+          request != _overlapRequest ||
+          _draft.periodStart != start ||
+          _draft.periodEnd != end ||
+          overlaps.isEmpty) {
+        return;
+      }
+      final continueAnyway = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Overlapping billing period'),
+          content: const Text(
+            'This billing period overlaps a previously saved bill for the same category. Some dates may be covered by both calculations.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Change Dates'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Continue Anyway'),
+            ),
+          ],
+        ),
+      );
+      if (continueAnyway == true && mounted) _acknowledgedOverlap = key;
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved bills could not be checked for overlap.'),
+        ),
+      );
+    }
   }
 
   Future<void> _clearHouseholds() async {
@@ -348,12 +637,16 @@ class _BillWorkflowState extends State<BillWorkflow> {
     lastDate: billing ? null : parseDate(_draft.periodEnd),
     pickerLabel: billing ? 'Choose Billing Period' : 'Choose occupancy dates',
     showManualFields: !billing,
-    onChanged: (from, to) => setState(() {
-      update(from, to);
-      _changed();
-      _errors.remove(startId);
-      _errors.remove(endId);
-    }),
+    onChanged: (from, to) {
+      final changed = from != start || to != end;
+      setState(() {
+        update(from, to);
+        _changed();
+        _errors.remove(startId);
+        _errors.remove(endId);
+      });
+      if (billing && changed) unawaited(_warnForOverlap(from, to));
+    },
   );
 
   Widget _dropdown<T>(
@@ -977,9 +1270,14 @@ class _BillWorkflowState extends State<BillWorkflow> {
             ] else ...[
               Expanded(
                 child: OutlinedButton(
-                  key: const ValueKey('saveDisabled'),
-                  onPressed: null,
-                  child: const Text('Save'),
+                  key: const ValueKey('save'),
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -994,7 +1292,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
               Expanded(
                 child: FilledButton(
                   key: const ValueKey('exit'),
-                  onPressed: _returnHome,
+                  onPressed: _saving ? null : _exitResults,
                   child: const Text('Exit'),
                 ),
               ),

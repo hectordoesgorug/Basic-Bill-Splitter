@@ -8,8 +8,29 @@ import 'package:basic_bill_splitter/main.dart';
 import 'package:basic_bill_splitter/app/home_screen.dart';
 import 'package:basic_bill_splitter/workflow/bill_draft.dart';
 import 'package:basic_bill_splitter/workflow/bill_workflow.dart';
+import 'package:basic_bill_splitter/storage/bill_repository.dart';
+import 'package:basic_bill_splitter/storage/billing_period.dart';
+import 'package:basic_bill_splitter/storage/saved_bill_record.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class RetryBillRepository extends InMemoryBillRepository {
+  bool failWrites = true;
+
+  @override
+  Future<SaveBillResult> save(
+    SavedBillRecord record, {
+    String? movingRecordId,
+    String? replaceRecordId,
+  }) {
+    if (failWrites) throw StateError('simulated write failure');
+    return super.save(
+      record,
+      movingRecordId: movingRecordId,
+      replaceRecordId: replaceRecordId,
+    );
+  }
+}
 
 BillDraft validDraft() => BillDraft(today: DateTime(2026, 11, 1))
   ..amount = '1000.00'
@@ -71,7 +92,13 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(AppPlatform.channel, (call) async {
           nativeCalls.add(call);
-          return call.method == 'getVersion' ? version : true;
+          return switch (call.method) {
+            'getVersion' => version,
+            'openRepository' => true,
+            'savedBills' || 'overlappingBills' => <String>[],
+            'findSavedBill' || 'latestSavedBill' => null,
+            _ => null,
+          };
         });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
@@ -882,13 +909,13 @@ void main() {
       await next(tester);
       await tester.tap(find.byKey(const ValueKey('exit')));
       await tester.pumpAndSettle();
-      expect(find.text('Discard this calculation?'), findsOneWidget);
+      expect(find.text('Save before exiting?'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.text('Results').last, findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('exit')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard'));
+      await tester.tap(find.text('Exit Without Saving'));
       await tester.pumpAndSettle();
       expect(find.text('Choose a bill type'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('billType-water')));
@@ -1078,9 +1105,9 @@ void main() {
       expect(find.text('Results').last, findsOneWidget);
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const ValueKey('saveDisabled')))
+            .widget<OutlinedButton>(find.byKey(const ValueKey('save')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(
         tester
@@ -1096,9 +1123,9 @@ void main() {
       expect(find.text('Results').last, findsOneWidget);
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const ValueKey('saveDisabled')))
+            .widget<OutlinedButton>(find.byKey(const ValueKey('save')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(
         tester
@@ -1126,6 +1153,227 @@ void main() {
       );
     },
   );
+
+  testWidgets('Save persists current results and updates after recalculation', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(initialDraft: validDraft(), repository: repository),
+      ),
+    );
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    expect(find.text('Results').last, findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+    expect(find.text('Bill saved successfully.'), findsOneWidget);
+    expect(find.text('Results').last, findsOneWidget);
+    expect(await repository.allRecords(), hasLength(1));
+    final firstSnapshot = (await repository.allRecords()).single.snapshot;
+    final firstHousehold = (firstSnapshot['households']! as List).single as Map;
+    expect(firstHousehold['occupantCount'], 1);
+    expect(
+      (firstHousehold['occupants']! as List).single['amountCents'],
+      firstHousehold['amountCents'],
+    );
+    await tester.pump(const Duration(seconds: 5));
+
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+    expect(find.text('Already saved.'), findsOneWidget);
+    expect(await repository.allRecords(), hasLength(1));
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-Details')));
+    await tester.pumpAndSettle();
+    await enter(tester, 'amount', '2000.00');
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    expect(find.text('Results').last, findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Replace existing bill?'), findsOneWidget);
+    await tester.tap(find.text('Replace'));
+    await tester.pumpAndSettle();
+    expect(await repository.allRecords(), hasLength(1));
+    expect(
+      (await repository.allRecords()).single.snapshot['totalAmountCents'],
+      200000,
+    );
+    expect(find.text('Results').last, findsOneWidget);
+  });
+
+  testWidgets('Save failure keeps Results and allows retry', (tester) async {
+    final repository = RetryBillRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(initialDraft: validDraft(), repository: repository),
+      ),
+    );
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'The bill could not be saved. Your calculation is still available; try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Results').last, findsOneWidget);
+    expect(await repository.allRecords(), isEmpty);
+
+    repository.failWrites = false;
+    await tester.pump(const Duration(seconds: 5));
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+    expect(find.text('Bill saved successfully.'), findsOneWidget);
+    expect(await repository.allRecords(), hasLength(1));
+  });
+
+  testWidgets('equal-per-household save keeps occupant allocations absent', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    final draft = validDraft()..selectCategory(BillCategory.miscellaneous);
+    draft.households.single.headcount = '2';
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(initialDraft: draft, repository: repository),
+      ),
+    );
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+    final savedHousehold =
+        ((await repository.allRecords()).single.snapshot['households']! as List)
+                .single
+            as Map;
+    expect(savedHousehold['occupants'], hasLength(2));
+    expect(
+      (savedHousehold['occupants']! as List).map(
+        (o) => (o as Map)['amountCents'],
+      ),
+      everyElement(isNull),
+    );
+  });
+
+  testWidgets('overlapping billing selection warns but allows continuing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = InMemoryBillRepository();
+    await repository.save(
+      SavedBillRecord.create(
+        category: BillCategory.electricity.name,
+        assignedMonth: const AssignedMonth(2026, 11),
+        startDate: '2026-10-23',
+        endDate: '2026-11-22',
+        snapshot: const {},
+        now: DateTime.utc(2026, 11, 22),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(initialDraft: validDraft(), repository: repository),
+      ),
+    );
+    final periodPicker = find.byKey(const ValueKey('period.pickDates'));
+    await tester.ensureVisible(periodPicker);
+    await tester.tap(periodPicker);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('20').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Use dates'));
+    await tester.pumpAndSettle();
+    expect(find.text('Overlapping billing period'), findsOneWidget);
+    await tester.tap(find.text('Continue Anyway'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bill Details'), findsOneWidget);
+    await next(tester);
+    expect(find.text('Households').last, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('new category draft proposes the next saved billing period', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    await repository.save(
+      SavedBillRecord.create(
+        category: BillCategory.electricity.name,
+        assignedMonth: const AssignedMonth(2026, 11),
+        startDate: '2026-10-23',
+        endDate: '2026-11-22',
+        snapshot: const {'totalAmountCents': 10000},
+        now: DateTime.utc(2026, 11, 22),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(repository: repository),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('billType-electricity')));
+    await tester.pumpAndSettle();
+    expect(find.text('23 Nov 2026 - 22 Dec 2026'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Results Exit offers Save and Exit Without Saving', (
+    tester,
+  ) async {
+    final repository = InMemoryBillRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: HomeScreen(initialDraft: validDraft(), repository: repository),
+      ),
+    );
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    await tester.tap(find.byKey(const ValueKey('exit')));
+    await tester.pumpAndSettle();
+    expect(find.text('Save before exiting?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Results').last, findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('exit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save & Exit'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a bill type'), findsOneWidget);
+    expect(await repository.allRecords(), hasLength(1));
+  });
 
   testWidgets('phone width and large text remain scrollable without overflow', (
     tester,

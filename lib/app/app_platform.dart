@@ -1,8 +1,11 @@
 import 'package:flutter/services.dart';
 
+import '../storage/bill_repository.dart';
+
 /// Android facilities used by the app shell, without additional packages.
 abstract final class AppPlatform {
   static const channel = MethodChannel('basic_bill_splitter/app');
+  static final BillRepository bills = PlatformBillRepository(channel);
 
   static Future<String?> version() async {
     try {

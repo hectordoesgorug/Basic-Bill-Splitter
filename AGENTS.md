@@ -39,7 +39,9 @@ Current responsibilities:
 | `lib/calculation/bill_models.dart` | Typed bill, household, occupant, and allocation models |
 | `lib/calculation/bill_calculator.dart` | Pure-Dart validation, allocation, and cent reconciliation |
 | `lib/workflow/bill_draft.dart` | Transient inputs, category defaults, parsing, and form/date validation |
-| `lib/workflow/bill_workflow.dart` | Step-based interface, navigation, field errors, and result presentation |
+| `lib/workflow/bill_workflow.dart` | Step-based interface, navigation, field errors, save flow, and result presentation |
+| `lib/storage/` | Versioned saved-bill records, assigned-month rules, and repository interface |
+| `android/.../SavedBillDatabase.kt` | App-private SQLite schema, transactional writes, and category/month uniqueness |
 | `test/calculation/` | Calculation unit and regression tests |
 | `test/workflow/` | Draft parsing and validation tests |
 | `test/widget_test.dart` | Form, navigation, layout, and calculation integration tests |
@@ -94,10 +96,12 @@ Users may override the allocation method for the current bill.
   occupants per household; this is a UI guard, not an engine limit.
 
 The engine and five-step calculation interface are implemented. Drafts are not
-persisted after process termination. Saved profiles, membership management,
-payment tracking, storage, revision histories, backups, exports, and itemized
-billing are not implemented; do not treat proposals as existing functionality
-or introduce them without separately approved scope.
+restored after process termination. Completed calculations can be saved in the
+versioned app-private SQLite database and are unique by category and majority-
+covered assigned month. Saved household or occupant profiles, membership
+management, payment tracking, revision histories, History UI, backups, exports,
+and itemized billing are not implemented; do not treat proposals as existing
+functionality or introduce them without separately approved scope.
 
 ## 5. Reliability and Security
 
@@ -113,8 +117,9 @@ or introduce them without separately approved scope.
 - Dispose controllers and other resources reliably, including on error paths.
 - Do not perform destructive operations or alter real user data without explicit
   authorization. Keep test data isolated from real data.
-- If persistence is approved later, design validation, migration, data-integrity,
-  and recovery safeguards before introducing writes or destructive changes.
+- Preserve saved-bill validation, schema versioning, explicit migrations,
+  transactional replacement, and recovery safeguards when changing persistence.
+  Never silently delete or rebuild an unreadable saved-bill database.
 
 ## 6. Testing
 

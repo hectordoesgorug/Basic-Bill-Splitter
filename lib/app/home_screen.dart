@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
+import '../storage/bill_repository.dart';
+import '../storage/billing_period.dart';
 import '../workflow/bill_draft.dart';
 import '../workflow/bill_workflow.dart';
 import 'app_menu.dart';
 import 'app_platform.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.initialDraft});
+  const HomeScreen({super.key, this.initialDraft, this.repository});
 
   final BillDraft? initialDraft;
+  final BillRepository? repository;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -17,6 +22,41 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late BillDraft? _draft = widget.initialDraft;
   late final Future<String?> _version = AppPlatform.version();
+  BillRepository get _repository => widget.repository ?? AppPlatform.bills;
+
+  void _startBill(BillCategory category) {
+    final draft = BillDraft()..selectCategory(category);
+    setState(() => _draft = draft);
+    unawaited(_suggestContinuity(draft));
+  }
+
+  Future<void> _suggestContinuity(BillDraft draft) async {
+    final originalStart = draft.periodStart;
+    final originalEnd = draft.periodEnd;
+    try {
+      final latest = await _repository.latestForCategory(draft.category.name);
+      if (!mounted ||
+          !identical(_draft, draft) ||
+          latest == null ||
+          draft.periodStart != originalStart ||
+          draft.periodEnd != originalEnd) {
+        return;
+      }
+      final next = nextBillingPeriod(
+        parseDate(latest.startDate)!,
+        parseDate(latest.endDate)!,
+      );
+      draft
+        ..periodStart = dateText(next.$1)
+        ..periodEnd = dateText(next.$2);
+      setState(() {});
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved bills could not be read.')),
+      );
+    }
+  }
 
   Future<void> _visitRepository() async {
     final opened = await AppPlatform.openRepository();
@@ -36,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_draft case final draft?) {
       return BillWorkflow(
         draft: draft,
+        repository: _repository,
         version: _version,
         onHome: () => setState(() => _draft = null),
       );
@@ -104,10 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                         alignment: Alignment.centerLeft,
                                       ),
-                                      onPressed: () => setState(() {
-                                        _draft = BillDraft()
-                                          ..selectCategory(category);
-                                      }),
+                                      onPressed: () => _startBill(category),
                                       child: Row(
                                         children: [
                                           Icon(switch (category) {
