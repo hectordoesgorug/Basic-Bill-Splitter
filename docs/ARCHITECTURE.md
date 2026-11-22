@@ -298,5 +298,59 @@ bootstrapping or explicitly track wrapper components. Do not regenerate the
 platform project merely to obtain them. Local SDK paths, signing properties,
 keystores, caches, private fixtures, and generated outputs remain excluded.
 
-The release build currently uses debug signing. A production signing strategy
-and signer verification are required before distributing a release APK.
+## Production Release Signing
+
+Release builds use a dedicated Gradle signing configuration. Gradle reads
+`android/key.properties` when present; keep that file local and untracked. It
+must contain these four properties:
+
+```properties
+storeFile=C:/Users/your-name/keys/basic-bill-splitter-release.jks
+storePassword=<keystore-password>
+keyAlias=<key-alias>
+keyPassword=<key-password>
+```
+
+Use an absolute keystore path outside the repository. The release build checks
+that all properties are present and that the path names an existing readable
+file outside the checkout. A missing or invalid configuration fails a release
+task with a message that does not print property values. Debug builds do not
+require signing credentials. The repository ignore rules cover
+`android/key.properties` and local `.jks` and `.keystore` files; keep the
+keystore outside the checkout regardless.
+
+Create the private key only after choosing a secure storage location. Android
+Studio's **Build > Generate Signed Bundle / APK** wizard can create a keystore;
+choose a path outside the repository and store it securely. Alternatively, use
+the JDK's `keytool` interactively so it prompts for passwords:
+
+```text
+keytool -genkeypair -v -keystore <absolute-path-outside-repository> -alias <key-alias> -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Enter the resulting keystore path, alias, and passwords in the untracked
+`android/key.properties`. Do not put actual values in source control or
+command history. Keep secure, separate backups of the keystore and passwords;
+losing the private key may prevent ordinary signed updates to existing
+installations.
+
+Once the key and local properties are configured, build the signed APK with:
+
+```text
+flutter build apk --release
+```
+
+Inspect the certificate with Android SDK Build Tools' `apksigner`:
+
+```text
+apksigner verify --print-certs <path-to-apk>
+```
+
+Keep using the same signing identity for subsequent APK updates. Android accepts
+an in-place update only when the installed app and update have a compatible
+signing identity. Losing the key can therefore require users to uninstall the
+existing app before installing a differently signed build, which removes its
+app-private data. Key backup and retention are part of release operations.
+
+Generating a key, creating a signed APK, installing it, and publishing it are
+separate steps and are not part of this repository configuration change.

@@ -49,3 +49,9 @@ app.*.map.json
 
 # Local private regression fixtures
 /test/fixtures/private/
+
+# Release signing configuration and repository-local private keys
+/android/key.properties
+/android/build/
+/android/*.jks
+/android/*.keystore

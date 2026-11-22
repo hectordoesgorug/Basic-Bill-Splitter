@@ -1,7 +1,62 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val releaseSigningPropertiesFile = rootProject.file("key.properties")
+val releaseSigningProperties = Properties().apply {
+    if (releaseSigningPropertiesFile.isFile) {
+        releaseSigningPropertiesFile.inputStream().use(::load)
+    }
+}
+val releaseStorePath = releaseSigningProperties.getProperty("storeFile")?.trim()
+val releaseStorePassword = releaseSigningProperties.getProperty("storePassword")?.trim()
+val releaseKeyAlias = releaseSigningProperties.getProperty("keyAlias")?.trim()
+val releaseKeyPassword = releaseSigningProperties.getProperty("keyPassword")?.trim()
+
+gradle.taskGraph.whenReady {
+    val releaseTasks = allTasks.filter { task ->
+        task.name in setOf("assembleRelease", "bundleRelease", "packageRelease") ||
+            task.name.startsWith("validateSigningRelease")
+    }
+    if (releaseTasks.isNotEmpty()) {
+        if (listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+                .any { it.isNullOrBlank() }
+        ) {
+            throw GradleException(
+                "Release signing is not configured. Set storeFile, storePassword, keyAlias, and keyPassword in android/key.properties."
+            )
+        }
+
+        val keystore = try {
+            Paths.get(requireNotNull(releaseStorePath)).also {
+                if (!it.isAbsolute) throw IllegalArgumentException()
+            }.normalize()
+        } catch (_: Exception) {
+            throw GradleException("Release signing storeFile must be a valid absolute path outside the repository.")
+        }
+        val repository = rootProject.projectDir.toPath().toRealPath()
+        val realKeystore = try {
+            keystore.toRealPath()
+        } catch (_: Exception) {
+            throw GradleException(
+                "Release signing keystore must be an existing readable file outside the repository."
+            )
+        }
+        if (realKeystore.startsWith(repository) ||
+            !Files.isRegularFile(realKeystore) ||
+            !Files.isReadable(realKeystore)
+        ) {
+            throw GradleException(
+                "Release signing keystore must be an existing readable file outside the repository."
+            )
+        }
+    }
 }
 
 android {
@@ -29,11 +84,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseStorePath?.let { file(it) }
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
