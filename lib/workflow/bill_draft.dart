@@ -53,6 +53,30 @@ String formatPhp(int cents) {
   return '₱$whole.${(cents % 100).toString().padLeft(2, '0')}';
 }
 
+/// Two decimal places for presentation only; never feed this back into a bill.
+/// Decimal expansion also keeps very large finite values out of exponent form.
+String formatQuantity(num value) {
+  if (!value.isFinite) {
+    throw ArgumentError.value(value, 'value', 'Must be finite');
+  }
+  final parts = value.abs().toString().toLowerCase().split('e');
+  final mantissa = parts.first.split('.');
+  final fraction = mantissa.length == 2 ? mantissa[1] : '';
+  final exponent =
+      (parts.length == 2 ? int.parse(parts[1]) : 0) - fraction.length + 2;
+  var hundredths = BigInt.parse(mantissa.first + fraction);
+  if (exponent >= 0) {
+    hundredths *= BigInt.from(10).pow(exponent);
+  } else {
+    final divisor = BigInt.from(10).pow(-exponent);
+    hundredths = (hundredths + divisor ~/ BigInt.two) ~/ divisor;
+  }
+  final sign = value.isNegative && hundredths != BigInt.zero ? '-' : '';
+  final whole = hundredths ~/ BigInt.from(100);
+  final decimal = (hundredths % BigInt.from(100)).toString().padLeft(2, '0');
+  return '$sign$whole.$decimal';
+}
+
 String dateText(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-'
     '${date.month.toString().padLeft(2, '0')}-'

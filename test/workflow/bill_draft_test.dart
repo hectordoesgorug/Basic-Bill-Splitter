@@ -5,6 +5,64 @@ import 'package:flutter_test/flutter_test.dart';
 BillDraft draft() => BillDraft(today: DateTime(2026, 11, 1))..amount = '100.00';
 
 void main() {
+  test('PHP display includes whole amounts, trailing zeros and zero cents', () {
+    expect(formatPhp(700), '₱7.00');
+    expect(formatPhp(750), '₱7.50');
+    expect(formatPhp(0), '₱0.00');
+  });
+
+  for (final entry in <num, String>{
+    0: '0.00',
+    7: '7.00',
+    7.5: '7.50',
+    0.007: '0.01',
+    0.0049: '0.00',
+    0.9999: '1.00',
+    12.34567: '12.35',
+    1.005: '1.01',
+    1e-300: '0.00',
+    1e21: '1000000000000000000000.00',
+  }.entries) {
+    test('quantity ${entry.key} displays exactly two decimal places', () {
+      expect(formatQuantity(entry.key), entry.value);
+    });
+  }
+
+  test(
+    'quantity formatting handles extreme finite values and negative zero',
+    () {
+      expect(formatQuantity(1e300), '1${''.padLeft(300, '0')}.00');
+      expect(formatQuantity(-0.0), '0.00');
+    },
+  );
+
+  for (final invalid in [double.nan, double.infinity, -double.infinity]) {
+    test('quantity formatting rejects nonfinite value $invalid', () {
+      expect(() => formatQuantity(invalid), throwsArgumentError);
+    });
+  }
+
+  test('display rounding does not alter source quantity precision', () {
+    final input = draft()..consumption = '3.00007';
+    final occupant = input.households.single.occupants.single
+      ..measured = '1.23456';
+    final bill = input.toBill();
+    expect(formatQuantity(bill.totalConsumption!), '3.00');
+    expect(
+      formatQuantity(
+        bill.households.single.occupants.single.measuredConsumption!,
+      ),
+      '1.23',
+    );
+    expect(input.consumption, '3.00007');
+    expect(occupant.measured, '1.23456');
+    expect(bill.totalConsumption, 3.00007);
+    expect(
+      bill.households.single.occupants.single.measuredConsumption,
+      1.23456,
+    );
+  });
+
   test('six categories select specified default methods', () {
     final input = draft();
     expect(BillCategory.values, hasLength(6));

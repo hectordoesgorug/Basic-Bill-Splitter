@@ -45,6 +45,67 @@ Future<void> select(WidgetTester tester, String key, String label) async {
 }
 
 void main() {
+  testWidgets('Review and Results format quantities without rounding inputs', (
+    tester,
+  ) async {
+    final draft = validDraft()
+      ..amount = '100.00'
+      ..consumption = '3.00007';
+    draft.households.single.occupants.single.measured = '1.23456';
+    final second = HouseholdDraft(name: 'Second household');
+    second.occupants.single.measured = '0';
+    draft.households.add(second);
+
+    await pumpDraft(tester, draft);
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    expect(find.text('Review'), findsOneWidget);
+    expect(find.text('Total consumption: 3.00 kWh'), findsOneWidget);
+    expect(find.text('Measured usage: 1.23 kWh'), findsOneWidget);
+    expect(find.text('Measured usage: 0.00 kWh'), findsOneWidget);
+    expect(find.text('Full Period · 30 days'), findsNWidgets(2));
+    expect(find.text('1 occupant(s)'), findsNWidgets(2));
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('billTotal'))).data,
+      '₱100.00',
+    );
+
+    await next(tester);
+    expect(find.text('Results'), findsOneWidget);
+    expect(find.text('Total consumption: 3.00 kWh'), findsOneWidget);
+    expect(find.text('Measured usage: 1.23 kWh'), findsOneWidget);
+    expect(find.text('Measured usage: 0.00 kWh'), findsOneWidget);
+    // These allocations require the full input precision, not displayed values.
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('householdTotal0'))).data,
+      '₱70.58',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('householdTotal1'))).data,
+      '₱29.42',
+    );
+
+    await back(tester);
+    await back(tester);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const ValueKey('h0.o0.measured')))
+          .initialValue,
+      '1.23456',
+    );
+    await back(tester);
+    await back(tester);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const ValueKey('consumption')))
+          .initialValue,
+      '3.00007',
+    );
+    expect(draft.households.first.occupants.single.measured, '1.23456');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('app opens bill details with Material 3', (tester) async {
     await tester.pumpWidget(const MyApp());
     expect(find.text('Bill Details'), findsOneWidget);

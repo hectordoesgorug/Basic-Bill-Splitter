@@ -83,7 +83,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
       } on ArgumentError {
         // Scalar fields were validated above; the engine checks aggregate usage.
         final message =
-            'Combined measured usage must not exceed ${_draft.consumption} ${_draft.category.unit}.';
+            'Combined measured usage must not exceed ${formatQuantity(bill.totalConsumption!)} ${_draft.category.unit}.';
         final usageErrors = <String, String>{'usage': message};
         for (var h = 0; h < _draft.households.length; h++) {
           final household = _draft.households[h];
@@ -479,7 +479,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
         Text(
           input.measuredConsumption == null
               ? 'Measured usage: not specified'
-              : 'Measured usage: ${_draft.households[h].occupants[o].measured.trim()} ${_draft.category.unit}',
+              : 'Measured usage: ${formatQuantity(input.measuredConsumption!)} ${_draft.category.unit}',
         ),
       ],
     ),
@@ -506,7 +506,7 @@ class _BillWorkflowState extends State<BillWorkflow> {
         Text(methodLabel(_draft.method)),
         if (bill.totalConsumption != null)
           Text(
-            'Total consumption: ${_draft.consumption.trim()} ${_draft.category.unit}',
+            'Total consumption: ${formatQuantity(bill.totalConsumption!)} ${_draft.category.unit}',
           ),
       ]),
       if (results)

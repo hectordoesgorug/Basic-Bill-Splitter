@@ -30,9 +30,14 @@ do not affect the two non-hybrid methods.
 
 Amounts accept plain decimal digits with up to two decimal places (for example
 `1234.56`) and convert directly to integer cents. Results use PHP formatting,
-such as `₱1,234.56`. Dates accept `YYYY-MM-DD` or the calendar picker.
-Field errors prevent advancing until corrected; aggregate measured usage is
-validated by the engine before Review.
+such as `₱1,234.56`. Review and Results display continuous quantities with
+exactly two decimal places, including trailing zeros. Dates keep their date
+format; headcounts and occupancy-day counts remain integers. Display rounding
+never changes the original entry text, calculator inputs, weights, or
+intermediate precision.
+Reusable presentation helpers are in `lib/workflow/bill_draft.dart`.
+Dates accept `YYYY-MM-DD` or the calendar picker. Field errors prevent advancing
+until corrected; aggregate measured usage is validated by the engine before Review.
 
 Back buttons and Android system Back return to the previous step and preserve
 inputs. Reducing and then increasing a headcount retains the inactive occupant
@@ -153,6 +158,42 @@ larger text.
 Automated widget tests do not establish physical-device keyboard, system-bar,
 rotation, or accessibility behavior. Device checks should be reported
 separately from the automated suite.
+
+### Optional local regression fixture
+
+`test/calculation/private_bill_regression_test.dart` loads
+`test/fixtures/private/bill_regression.json`. The entire private fixture
+directory is ignored by Git. Keep real bill data, participant names, and any
+original photographs out of tracked source, documentation, and GitHub.
+
+The JSON contains `method` (an `AllocationMethod` enum name),
+`totalAmountCents`, optional `totalConsumption`, `periodDays`, and a
+`households` list. Each household has a `name` and an `occupants` list with
+`occupancyDays` and optional `measuredConsumption`. The `expected` object
+provides `householdCents` and flattened `occupantCents` arrays in input order,
+plus `totalAmountCents` and `personDays`. Additional descriptive metadata is
+not used as a calculation input.
+
+The runner checks expected allocations and exact occupant, household, and bill
+reconciliation without printing private values in assertion failures. Invalid
+or unreadable fixtures fail with a generic diagnostic; inspect the local JSON
+to investigate. If the fixture is absent, the test is explicitly **skipped**,
+not passed. The public suite remains runnable without it.
+
+Set the process environment variable `BILL_SPLITTER_PRIVATE_FIXTURE` to use
+another local fixture path; keep sensitive fixtures inside the ignored
+directory. For example, this PowerShell command checks missing-fixture behavior
+without moving or deleting an existing fixture:
+
+```powershell
+$env:BILL_SPLITTER_PRIVATE_FIXTURE = 'test/fixtures/private/not-supplied.json'
+flutter test
+Remove-Item Env:BILL_SPLITTER_PRIVATE_FIXTURE
+```
+
+Before sharing changes, use `git check-ignore -v -- test/fixtures/private/bill_regression.json`
+and Git status to confirm the private data remains excluded. Never force-add
+private fixture contents.
 
 ## Getting Started
 
