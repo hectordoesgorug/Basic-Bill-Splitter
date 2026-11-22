@@ -143,8 +143,8 @@ Supported methods:
 - `AllocationMethod.equalPerHousehold`: split the bill equally among households,
   irrespective of their occupant counts or days.
 
-The hybrid rule deliberately supersedes the owner-provided legacy
-`BillSplitter.py`, which excluded metered occupants from residual allocation.
+The hybrid allocation rule supersedes the legacy `BillSplitter.py`
+implementation, which excluded metered occupants from residual allocation.
 
 ### Validation and rounding
 

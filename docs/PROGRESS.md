@@ -1,30 +1,30 @@
 # Development Progress
 
-The MVP is implemented and accepted. This page distinguishes committed source,
-historical verification, owner-reported device acceptance, and pending release
+The MVP feature set is implemented. This page records committed source,
+historical automated results, reported manual testing, and pending release
 preparation.
 
 ## Implementation and Source Baseline
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Offline bill calculation and five-step workflow | Implemented and accepted | Pure-Dart allocation engine; integer-cent reconciliation and validation remain the calculation authority. |
-| Saved bills and billing periods | Implemented and accepted | Android app-private SQLite, category/majority-month uniqueness, continuity suggestions, and overlap warnings. |
-| History and PNG sharing | Implemented and accepted | Annual category graphs, saved snapshots, reusable card, and Android image sharing. |
-| Settings and data management | Implemented and accepted | ZIP Backup/Restore, Clear All for drafts, Wipe Data for saved bills, and persisted Dark Mode. |
-| Currency and History refinements | Implemented and accepted | Currency display, safe single-record History deletion, saved computation explanations, corrected card text, and accessible date confirmation. |
-| MVP source publication | Committed and pushed | Repository review on 2026-11-23 confirmed local `main`, `origin/main`, and live remote `main` at `a94a96b8c521fc1e7363180679f8ae6e08e47d53`. |
+| Offline bill calculation and five-step workflow | Implemented | Pure-Dart allocation engine; integer-cent reconciliation and validation remain the calculation authority. |
+| Saved bills and billing periods | Implemented | Android app-private SQLite, category/majority-month uniqueness, continuity suggestions, and overlap warnings. |
+| History and PNG sharing | Implemented | Annual category graphs, saved snapshots, reusable card, and Android image sharing. |
+| Settings and data management | Implemented | ZIP Backup/Restore, Clear All for drafts, Wipe Data for saved bills, and persisted Dark Mode. |
+| Currency and History refinements | Implemented | Currency display, safe single-record History deletion, saved computation explanations, corrected card text, and accessible date confirmation. |
+| MVP implementation baseline | Committed and pushed | `a94a96b8c521fc1e7363180679f8ae6e08e47d53` contains the completed MVP implementation. Repository review on 2026-11-23 confirmed that it matched local `main`, `origin/main`, and live remote `main` at that time. |
+| Documentation and metadata | Committed and pushed | `86e2a9605b0e92d2732c0fa9ebe5337cb0c9f63d` is the subsequent documentation-and-metadata commit. The editorial review confirmed local `main`, `origin/main`, and live remote `main` at this commit. |
 | Production release preparation | Pending | Package version remains `1.0.0+1`. Version approval, licensing, signing, candidate verification, and publication remain separate decisions. |
 
 The earlier progress page described the refinements as local and physical-device
-checks as pending. Those statements reflected the record before subsequent
-commit/push and owner acceptance. The current source baseline includes the
-accepted MVP; documentation edits made after that baseline require their own
-review.
+checks as pending. Source publication and reported manual testing subsequently
+superseded that status. The commits above distinguish the implementation baseline
+from the later documentation and metadata updates.
 
 ## Historical Verification and Device Acceptance
 
-The accepted MVP's prior verification report recorded:
+The MVP's prior verification report recorded:
 
 - Dart formatting passed.
 - Flutter analysis passed.
@@ -33,11 +33,11 @@ The accepted MVP's prior verification report recorded:
 - Debug APK build passed.
 - `git diff --check` passed.
 
-The project owner subsequently confirmed manual acceptance on a Poco X6 running
-Android 16. This is owner-reported device testing, not an independently repeated
-test or evidence for every possible failure scenario. The earlier list of
-pending date-picker, deletion, currency-persistence, and accessibility checks is
-superseded as an acceptance status; no individual case log is recorded here.
+Manual acceptance testing on a Poco X6 running Android 16 was subsequently
+confirmed. These checks have not been independently repeated as part of
+release-candidate validation. No individual case log is recorded here for
+date-picker layout, deletion, currency persistence, or accessibility; those
+scenarios still require release-candidate verification.
 
 These results are historical. They are not fresh verification of a signed release
 candidate. The repository documentation and package-description review did not

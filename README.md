@@ -7,8 +7,8 @@ expenses among households. Calculate each expense independently, one bill at a
 time, using measured consumption, occupancy days, or equal household shares.
 The Android launcher name is **Splitter**. No account is required.
 
-The MVP is implemented and accepted. Production release preparation is still
-pending; this README does not offer a production APK download.
+The MVP feature set is implemented. Production release preparation remains in
+progress. A production APK is not yet available.
 
 ## Features and expense categories
 
@@ -139,7 +139,7 @@ Read [AGENTS.md](AGENTS.md) before changing the project.
   rounding example, tests, optional private fixture, and build setup.
 - [Data storage](docs/DATA_STORAGE.md): saved snapshots, billing-date rules,
   currency compatibility, backup/restore, and privacy.
-- [Progress](docs/PROGRESS.md): accepted MVP, historical verification, and pending
+- [Progress](docs/PROGRESS.md): implemented MVP, historical verification, and pending
   release-candidate checks.
 
 Standard checks from the repository root:
@@ -153,7 +153,7 @@ git diff --check
 
 An Android debug build uses `flutter build apk --debug`. Platform-channel mocks
 and widget tests do not establish physical-device behavior. Historical test and
-owner-reported device results are recorded separately in Progress.
+reported device results are recorded separately in Progress.
 
 ## Third-party attribution and licensing status
 
@@ -164,7 +164,7 @@ contrast, following the [GitHub logo guidelines](https://brand.github.com/founda
 GitHub and the Invertocat mark are trademarks of GitHub, Inc.; the link does not
 imply sponsorship or endorsement.
 
-The project has no root LICENSE file; selection of a project license remains an
-owner decision. Third-party packages and assets retain their own terms.
+The project has no root LICENSE file. A project license has not yet been selected.
+Third-party packages and assets retain their own terms.
 Dependency notices and their distribution requirements still need a release
 review; see [Progress](docs/PROGRESS.md#release-preparation).
