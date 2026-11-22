@@ -53,7 +53,7 @@ Available tabs and Back navigation preserve the in-memory draft. Revisiting an i
 
 Saved calculations are stored in an app-private, versioned SQLite database on Android. A saved record is assigned to the calendar month containing the greatest number of billing-period days; ties go to the later month. Only one record per category and assigned month can be saved. Replacing a conflicting bill requires confirmation. Saving an unchanged calculation does not create a duplicate. If a saved result is edited and recalculated, Save updates that record; changing its assigned month moves it, and a destination conflict also requires confirmation. Database failures leave the current calculation available and report an error.
 
-New drafts propose the next billing period from the latest saved end date for that category. Manually confirmed periods that overlap another saved period of the same category show a warning, but users may continue. History is available from the app menu: choose a bill category to view annual monthly amounts and saved bills, then open a read-only snapshot with Card and Details views. Share exports the same results card as a PNG from current Results or History; Android opens the system share chooser. History and sharing read app-private saved records or the current calculation and work offline. Settings and ZIP Backup/Restore are not implemented. The Results Exit action returns Home and offers Save & Exit, Exit Without Saving, or Cancel when needed. The app-menu Exit command closes the Android activity.
+New drafts propose the next billing period from the latest saved end date for that category. Manually confirmed periods that overlap another saved period of the same category show a warning, but users may continue. History is available from the app menu: choose a bill category to view annual monthly amounts and saved bills, then open a read-only snapshot with Card and Details views. Share exports the same results card as a PNG from current Results or History; Android opens the system share chooser. History and sharing read app-private saved records or the current calculation and work offline. Settings provides manual ZIP Backup and full-replacement Restore through Android's document picker, Clear All for the active draft, Wipe Data for saved bills, and a persisted Dark Mode toggle. Backups are not encrypted; store them securely. Clear All leaves saved bills untouched, while Wipe Data permanently removes saved records after confirmation. The Results Exit action returns Home and offers Save & Exit, Exit Without Saving, or Cancel when needed. The app-menu Exit command closes the Android activity.
 The Home footer places Visit GitHub and the app version near the bottom of the
 visible screen, above system insets. It scrolls with the page on shorter displays
 or with larger text. Visit GitHub opens the repository in an external browser.
@@ -164,7 +164,7 @@ final result = const BillCalculator().calculate(
 
 The app does not save household profiles, membership records, or payment tracking.
 Completed calculations can be saved on Android; working drafts remain in memory.
-History and PNG sharing are implemented. ZIP backup/restore and itemized billing are not implemented.
+History, PNG sharing, Settings backup/restore, draft clearing, saved-record wiping, and Dark Mode are implemented. Itemized billing is not implemented.
 
 ## Technical documentation
 

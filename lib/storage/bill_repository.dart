@@ -37,6 +37,8 @@ abstract interface class BillRepository {
     String? movingRecordId,
     String? replaceRecordId,
   });
+  Future<List<SavedBillRecord>> replaceAll(List<SavedBillRecord> records);
+  Future<int> deleteAll();
 }
 
 class PlatformBillRepository implements BillRepository {
@@ -122,6 +124,24 @@ class PlatformBillRepository implements BillRepository {
     }
     throw StateError('Storage returned an invalid save result');
   }
+
+  @override
+  Future<List<SavedBillRecord>> replaceAll(
+    List<SavedBillRecord> records,
+  ) async {
+    final values = await channel.invokeListMethod<String>('replaceSavedBills', {
+      'records': records.map((record) => record.encode()).toList(),
+    });
+    if (values == null) {
+      throw StateError('Storage returned no replacement result');
+    }
+    return values.map(SavedBillRecord.decode).toList(growable: false);
+  }
+
+  @override
+  Future<int> deleteAll() async =>
+      await channel.invokeMethod<int>('wipeSavedBills') ??
+      (throw StateError('Storage returned no wipe result'));
 }
 
 /// In-memory repository for deterministic workflow and persistence tests.
@@ -206,5 +226,29 @@ class InMemoryBillRepository implements BillRepository {
     );
     _records[key] = saved;
     return SaveBillResult.saved(saved);
+  }
+
+  @override
+  Future<List<SavedBillRecord>> replaceAll(
+    List<SavedBillRecord> records,
+  ) async {
+    final ids = <String>{};
+    final keys = <String>{};
+    for (final record in records) {
+      if (!ids.add(record.id) || !keys.add(record.uniqueKey)) {
+        throw const FormatException('Backup contains duplicate records');
+      }
+    }
+    _records
+      ..clear()
+      ..addEntries(records.map((record) => MapEntry(record.uniqueKey, record)));
+    return List.unmodifiable(_records.values);
+  }
+
+  @override
+  Future<int> deleteAll() async {
+    final count = _records.length;
+    _records.clear();
+    return count;
   }
 }

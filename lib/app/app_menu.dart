@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../history/bill_history_screen.dart';
 import '../storage/bill_repository.dart';
+import 'settings_screen.dart';
 import '../workflow/bill_draft.dart';
 import 'app_platform.dart';
 
@@ -11,11 +12,19 @@ class AppMenu extends StatelessWidget {
     required this.version,
     required this.repository,
     this.confirmExit,
+    this.darkMode = false,
+    this.onDarkModeChanged,
+    this.hasActiveDraft = false,
+    this.onDataReset,
   });
 
   final Future<String?> version;
   final BillRepository repository;
   final Future<bool> Function()? confirmExit;
+  final bool darkMode;
+  final Future<bool> Function(bool enabled)? onDarkModeChanged;
+  final bool hasActiveDraft;
+  final VoidCallback? onDataReset;
 
   Future<void> _information(BuildContext context, String title, Widget body) =>
       showDialog<void>(
@@ -116,11 +125,23 @@ class AppMenu extends StatelessWidget {
             'Saved bills are kept in app-private storage, one per category and assigned month. A bill belongs to the month with the most covered days; ties go to the later month. Replacing a saved bill requires confirmation. New drafts propose a period after the latest saved bill of that category. Overlapping periods show a warning, but calculation can continue.\n\n'
             'History is available from the menu by bill category. It shows annual monthly amounts and read-only saved details. The Card view can share a PNG; Details shows the saved calculation snapshot.\n\n'
             'Hybrid charges measured usage, then shares remaining usage among all occupants by person-days, including metered occupants. Person-days splits by occupancy duration. Equal per household does not assign individual monetary shares.\n\n'
-            'Drafts are not restored after the app closes. ZIP Backup/Restore and Settings are unavailable.',
+            'Settings — Backup exports saved bills to a ZIP file through Android’s document picker. Files are not encrypted. Restore validates a ZIP and, after confirmation, replaces all saved bills. Clear All discards only the current calculation. Wipe Data permanently deletes all saved bills after confirmation. Dark Mode switches the app appearance and persists on this device. Drafts are not restored after the app closes.',
           ),
         );
       case 'history':
         await _history(context);
+      case 'settings':
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => SettingsScreen(
+              repository: repository,
+              hasActiveDraft: hasActiveDraft,
+              darkMode: darkMode,
+              onDarkModeChanged: onDarkModeChanged ?? (_) async => false,
+              onDataReset: onDataReset ?? () {},
+            ),
+          ),
+        );
       case 'exit':
         final allowed = await confirmExit?.call() ?? true;
         if (allowed) await AppPlatform.exit();
@@ -137,7 +158,7 @@ class AppMenu extends StatelessWidget {
       PopupMenuItem(value: 'about', child: Text('About')),
       PopupMenuItem(value: 'howTo', child: Text('How to')),
       PopupMenuItem(value: 'history', child: Text('History')),
-      PopupMenuItem(enabled: false, child: Text('Settings — Coming soon')),
+      PopupMenuItem(value: 'settings', child: Text('Settings')),
       PopupMenuDivider(),
       PopupMenuItem(value: 'exit', child: Text('Exit')),
     ],

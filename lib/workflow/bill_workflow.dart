@@ -22,12 +22,16 @@ class BillWorkflow extends StatefulWidget {
     required this.repository,
     required this.onHome,
     required this.version,
+    this.darkMode = false,
+    this.onDarkModeChanged,
   });
 
   final BillDraft draft;
   final BillRepository repository;
   final VoidCallback onHome;
   final Future<String?> version;
+  final bool darkMode;
+  final Future<bool> Function(bool enabled)? onDarkModeChanged;
 
   @override
   State<BillWorkflow> createState() => _BillWorkflowState();
@@ -1200,6 +1204,10 @@ class _BillWorkflowState extends State<BillWorkflow> {
           version: widget.version,
           repository: widget.repository,
           confirmExit: _confirmDiscard,
+          darkMode: widget.darkMode,
+          onDarkModeChanged: widget.onDarkModeChanged,
+          hasActiveDraft: true,
+          onDataReset: widget.onHome,
         ),
         actions: [
           IconButton(

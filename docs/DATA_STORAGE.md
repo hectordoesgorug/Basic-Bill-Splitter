@@ -4,7 +4,7 @@
 
 Completed bill calculations are stored on Android in the app-private SQLite database `saved_bills.db`. The database uses Android's built-in SQLite APIs; Dart accesses it through the `BillRepository` abstraction and the `basic_bill_splitter/app` method channel. Reads and writes run on a native single-thread executor so SQLite work does not block Flutter's UI thread.
 
-Working drafts are held in memory only and are not restored after process termination. History reads saved snapshots through the repository. PNG sharing creates temporary cache files outside the database; ZIP Backup/Restore is not implemented.
+Working drafts are held in memory only and are not restored after process termination. History reads saved snapshots through the repository. PNG sharing creates temporary cache files outside the database. Manual ZIP Backup and full-replacement Restore use Android's Storage Access Framework; backups contain saved bills only and are not encrypted.
 
 ## Schema and Record Format
 
@@ -45,13 +45,29 @@ The Android save operation is synchronized and runs in one SQLite transaction. I
 
 Exit from Results returns to Home. An unchanged saved result exits without a prompt; an unsaved or changed result offers Save & Exit, Exit Without Saving, or Cancel. Save & Exit returns Home only after Save succeeds. Exit Without Saving discards the in-memory work but does not delete or revert saved records.
 
+## ZIP Backup and Restore
+
+Settings exports the saved-record collection through Android's Storage Access Framework. The user chooses the destination with `ACTION_CREATE_DOCUMENT`; the app does not select an external path or request broad storage access. Restore uses `ACTION_OPEN_DOCUMENT`. Both operations run offline and keep the database inside app-private storage.
+
+Format version 1 is a ZIP with exactly two UTF-8 entries: `manifest.json` and `bills.json`. The manifest records the format version, application ID, UTC creation timestamp, saved-record schema version, record count, and SHA-256 checksum of the exact `bills.json` bytes. The payload is the complete encoded `SavedBillRecord` list. Records are sorted by category, assigned year/month, then ID for deterministic output; IDs, timestamps, input snapshots, ordering, and integer-cent results are retained. Empty collections are supported. Drafts, preferences, database journals, PNG cache files, and unrelated app files are excluded.
+
+Restore first checks the ZIP entry names and count, compressed-stream limits, manifest versions and fields, checksum, and record count in the Android layer. It then decodes every record through `SavedBillRecord` in Dart and rejects unsupported schemas, malformed snapshots, duplicate IDs, or duplicate category/month keys before showing destructive confirmation. The confirmation explains full replacement and includes the saved-record counts; if a draft is active, it explains that success will discard it too. No merge is performed.
+
+The native replacement validates the incoming rows, then deletes and inserts all records inside one SQLite transaction. It checks the resulting record count and unique IDs/category/month keys before committing; exceptions roll the transaction back. After readback is compared with the validated input, Settings clears the active draft and returns Home. A failed replacement leaves existing saved rows intact. Wipe Data is a separate transactional row deletion and does not remove the database, preferences, or share cache. Clear All affects only the current in-memory draft and never deletes saved bills.
+
+Archive processing is bounded to 40 MiB total input, 64 KiB for the manifest, 32 MiB for bill payload data, and 5,000 records. Only the two expected file entries are accepted; duplicate, directory, and unexpected entries are rejected. Backups are not encrypted and may contain household and billing information. Store exported ZIPs securely. The app does not upload backups or make hidden extra copies.
+
+## Appearance Preferences
+
+Dark Mode is owned by the root Flutter app theme and stored separately in Android app-private `SharedPreferences`. The default is the established light theme. Turning Dark Mode on or off applies immediately; the selection is restored at startup. Preference-write failure is reported in Settings and the prior appearance is restored. Theme settings are not included in a bill backup and survive Wipe Data.
+
 ## Failure Handling, Migration, and Privacy
 
 A database read/write failure is surfaced as a platform-channel storage error. The app does not treat a failed read as an empty database. Record decoding reports malformed or unsupported payloads rather than silently accepting them. SQLite corruption is configured to fail explicitly; there is no automatic database deletion or rebuild.
 
 The Android database version is 1. The current upgrade handler has no migration path and fails explicitly if a different database version is encountered. Any future schema change must add and verify an explicit migration before it is released; it must not silently drop or recreate saved data.
 
-The database resides in app-private storage. Android backup is disabled for the app, and backup and device-transfer rules exclude the database and its journal/WAL files. No storage or network permission is requested for saving bills. This protection does not provide user-facing backup or restore; those features remain out of scope.
+The database and appearance preferences reside in app-private storage. Android automatic backup and device-transfer are disabled for app data, including the database and journal/WAL files. The Storage Access Framework grants access only to the user-selected ZIP document; no broad storage or network permission is requested. This does not encrypt an exported backup.
 
 ## PNG Sharing
 

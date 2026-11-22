@@ -10,10 +10,18 @@ import 'app_menu.dart';
 import 'app_platform.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.initialDraft, this.repository});
+  const HomeScreen({
+    super.key,
+    this.initialDraft,
+    this.repository,
+    this.darkMode = false,
+    this.onDarkModeChanged,
+  });
 
   final BillDraft? initialDraft;
   final BillRepository? repository;
+  final bool darkMode;
+  final Future<bool> Function(bool enabled)? onDarkModeChanged;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -78,12 +86,20 @@ class _HomeScreenState extends State<HomeScreen> {
         draft: draft,
         repository: _repository,
         version: _version,
+        darkMode: widget.darkMode,
+        onDarkModeChanged: widget.onDarkModeChanged,
         onHome: () => setState(() => _draft = null),
       );
     }
     return Scaffold(
       appBar: AppBar(
-        leading: AppMenu(version: _version, repository: _repository),
+        leading: AppMenu(
+          version: _version,
+          repository: _repository,
+          darkMode: widget.darkMode,
+          onDarkModeChanged: widget.onDarkModeChanged,
+          onDataReset: () => setState(() => _draft = null),
+        ),
       ),
       body: SafeArea(
         child: LayoutBuilder(

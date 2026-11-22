@@ -30,5 +30,39 @@ abstract final class AppPlatform {
   static Future<void> sharePng(Uint8List bytes) =>
       channel.invokeMethod<void>('sharePng', {'png': bytes});
 
+  static Future<bool> darkMode() async =>
+      await channel.invokeMethod<bool>('getDarkMode') ?? false;
+
+  static Future<bool> setDarkMode(bool enabled) async =>
+      await channel.invokeMethod<bool>('setDarkMode', {'enabled': enabled}) ??
+      false;
+
+  static Future<bool> createBackup({
+    required List<String> records,
+    required String filename,
+  }) async =>
+      await channel.invokeMethod<bool>('createBackup', {
+        'records': records,
+        'filename': filename,
+      }) ??
+      false;
+
+  static Future<List<String>?> pickBackup() async {
+    final response = await channel.invokeMapMethod<String, Object?>(
+      'pickBackup',
+    );
+    if (response == null) return null;
+    if (response['formatVersion'] != 1 || response['recordCount'] is! int) {
+      throw const FormatException('Backup response is invalid');
+    }
+    final records = response['records'];
+    if (records is! List ||
+        records.length != response['recordCount'] ||
+        records.any((record) => record is! String)) {
+      throw const FormatException('Backup records are invalid');
+    }
+    return records.cast<String>();
+  }
+
   static Future<void> exit() => SystemNavigator.pop();
 }

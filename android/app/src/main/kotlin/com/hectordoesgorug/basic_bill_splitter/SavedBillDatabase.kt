@@ -44,9 +44,11 @@ internal class SavedBillDatabase(context: Context) :
         }
     }
 
-    fun allRecords(): List<String> {
+    fun allRecords(): List<String> = allRecords(readableDatabase)
+
+    private fun allRecords(db: SQLiteDatabase): List<String> {
         val values = mutableListOf<String>()
-        readableDatabase.query(
+        db.query(
             TABLE, arrayOf("payload"), null, null, null, null,
             "assigned_year, assigned_month, category"
         ).use { cursor ->
@@ -129,6 +131,73 @@ internal class SavedBillDatabase(context: Context) :
         }
     }
 
+    @Synchronized
+    fun replaceAll(records: List<String>): List<String> {
+        if (records.size > MAX_RECORDS) {
+            throw IllegalArgumentException("Backup contains too many bills")
+        }
+        val ids = mutableSetOf<String>()
+        val keys = mutableSetOf<String>()
+        val jsonRecords = records.map { encoded ->
+            val json = JSONObject(encoded)
+            if (json.getInt("schemaVersion") != RECORD_SCHEMA_VERSION) {
+                throw IllegalArgumentException("Unsupported saved bill schema")
+            }
+            val id = json.getString("id")
+            val category = json.getString("category")
+            val year = json.getInt("assignedYear")
+            val month = json.getInt("assignedMonth")
+            if (id.isBlank() || category.isBlank() || year < 1 || month !in 1..12 ||
+                !ids.add(id) || !keys.add("$category:$year:$month")
+            ) {
+                throw IllegalArgumentException("Backup contains invalid or duplicate bills")
+            }
+            json
+        }
+
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete(TABLE, null, null)
+            for (json in jsonRecords) {
+                val payload = json.toString()
+                db.insertOrThrow(TABLE, null, values(json, payload))
+            }
+            val stored = allRecords(db)
+            if (stored.size != records.size) {
+                throw IllegalStateException("Saved bill replacement could not be verified")
+            }
+            val storedJson = stored.map(::JSONObject)
+            val storedIds = storedJson.map { it.getString("id") }.toSet()
+            val storedKeys = storedJson.map {
+                "${it.getString("category")}:${it.getInt("assignedYear")}:${it.getInt("assignedMonth")}"
+            }.toSet()
+            if (storedIds != ids || storedKeys != keys) {
+                throw IllegalStateException("Saved bill replacement could not be verified")
+            }
+            db.setTransactionSuccessful()
+            return stored
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    @Synchronized
+    fun deleteAll(): Int {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val deleted = db.delete(TABLE, null, null)
+            if (db.query(TABLE, arrayOf("id"), null, null, null, null, null).use { it.count } != 0) {
+                throw IllegalStateException("Saved bills could not be wiped")
+            }
+            db.setTransactionSuccessful()
+            return deleted
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     private data class Existing(val id: String, val createdAt: String, val payload: String, val json: JSONObject)
 
     private fun queryByKey(db: SQLiteDatabase, category: String, year: Int, month: Int): Existing? =
@@ -166,5 +235,7 @@ internal class SavedBillDatabase(context: Context) :
 
     companion object {
         private const val TABLE = "saved_bills"
+        private const val MAX_RECORDS = 5000
+        private const val RECORD_SCHEMA_VERSION = 1
     }
 }

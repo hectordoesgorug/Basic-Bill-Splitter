@@ -26,20 +26,22 @@ Data moves from **User Input → Draft Validation → Calculation Engine → Res
 
 | Path | Responsibility |
 | --- | --- |
-| `lib/main.dart` | App entry point, Material 3 theme, and Home route |
+| `lib/main.dart` | App entry point, root-owned Material 3 light/dark themes, persisted appearance loading, and Home route |
 | `lib/app/home_screen.dart` | Home category selection, fresh draft creation, saved-period continuity suggestion, and app shell |
-| `lib/app/app_menu.dart` | About, How to, History category selection, unavailable Settings entry, and activity Exit |
-| `lib/app/app_platform.dart` | Android method-channel wrapper for repository access, PNG sharing, version lookup, repository link, and activity exit |
+| `lib/app/app_menu.dart` | About, How to, History category selection, Settings navigation, and activity Exit |
+| `lib/app/app_platform.dart` | Android method-channel wrapper for repository access, SAF backup/restore, appearance preferences, PNG sharing, version lookup, repository link, and activity exit |
 | `lib/workflow/bill_draft.dart` | Transient fields, category/method defaults, parsing, date and form validation, and typed Bill construction |
 | `lib/workflow/bill_workflow.dart` | Five-step UI, validation-gated navigation, result invalidation, calculation, save/replace/exit flows, and result display |
 | `lib/workflow/date_range_fields.dart` | Billing and occupancy date selection and input |
 | `lib/workflow/household_section.dart` | Shared household grouping and presentation |
 | `lib/calculation/bill_models.dart` | Typed Bill, Household, Occupant, and immutable allocation models |
 | `lib/calculation/bill_calculator.dart` | Pure-Dart input validation, allocation, and deterministic cent reconciliation |
-| `lib/storage/bill_repository.dart` | Repository contract, platform implementation, save result types, and in-memory test implementation |
+| `lib/storage/bill_repository.dart` | Repository contract, platform implementation, save and replace-all result types, and in-memory test implementation |
 | `lib/storage/saved_bill_record.dart` | Versioned record metadata, snapshot JSON encoding/decoding, and consistency validation |
+| `android/app/src/main/kotlin/com/hectordoesgorug/basic_bill_splitter/SavedBillBackup.kt` | Native version 1 ZIP creation, checksum, entry limits, and archive validation |
 | `lib/storage/billing_period.dart` | Pure-Dart assigned-month, inclusive overlap, and next-period rules |
 | `lib/history/bill_history_screen.dart` | Category/year History, monthly graph/list, and read-only saved record Card/Details views |
+| `lib/app/settings_screen.dart` | Backup, validated full-replacement restore, current-draft clearing, saved-record wiping, and Dark Mode controls |
 | `lib/sharing/bill_share_card.dart` | Reusable current/saved snapshot card data and visual card |
 | `lib/sharing/bill_share_export.dart` | Full-card PNG rendering and Android share-channel orchestration |
 
@@ -61,11 +63,15 @@ The workflow creates the saved snapshot only from the current calculated bill an
 
 Both current Results and saved History records map to `ShareBillCardData`. `ShareBillCard` renders the concise monetary card, and `bill_share_export.dart` captures the entire variable-height card as a PNG. The Android method channel passes PNG bytes to a native `FileProvider` share intent. The provider exposes only temporary files under its dedicated cache subdirectory; sharing does not save or change a bill.
 
-## Android Storage Boundary and Errors
+`SettingsScreen` is opened from the shared app menu on Home or during a workflow. It reuses `BillRepository` for backup snapshots, validated full replacement, and saved-record wipe. Clear All calls the Home draft-reset callback and leaves the repository untouched. Successful restore or wipe also clears the active draft so a Results screen cannot retain stale saved-state references. The root `MyApp` owns Light/Dark theme state; the Settings toggle updates that state and persists it through Android preferences.
 
-Dart code talks to the `BillRepository` abstraction. `PlatformBillRepository` encodes records and invokes the `basic_bill_splitter/app` method channel. The Kotlin `MainActivity` dispatches storage work on a single-thread executor and posts results back to the Flutter main thread. `SavedBillDatabase` owns SQLite operations. The same repository contract has an in-memory implementation for deterministic Dart tests.
+## Android Storage Boundary, Settings, and Errors
 
-Android storage failures return a platform-channel error; Dart does not interpret read failures as an empty database. The workflow keeps the current calculation when a save fails and presents an error message. Record decoding rejects unsupported schemas and inconsistent snapshots rather than accepting malformed data.
+Dart code talks to the `BillRepository` abstraction. `PlatformBillRepository` encodes records and invokes the `basic_bill_splitter/app` method channel. The Kotlin `MainActivity` dispatches SQLite work on a single-thread executor and posts results back to the Flutter main thread. `SavedBillDatabase` owns SQLite operations. The repository contract also has an in-memory implementation for deterministic Dart tests.
+
+`SettingsScreen` uses this same repository for listing, full replacement, and deletion; it does not access SQLite directly. Backup and restore use Android's Storage Access Framework document picker. Native `SavedBillBackup` writes and validates the versioned ZIP payload, while Dart decodes each restored `SavedBillRecord` before it can request replacement. Replacement and wipe use database transactions. Dark Mode state belongs to `MyApp`; Android private preferences persist it separately from saved bills and ZIP archives.
+
+Android storage failures return a platform-channel error; Dart does not interpret read failures as an empty database. Settings reports operation failures without claiming success, and a failed native replacement rolls back its transaction. Record decoding rejects unsupported schemas and inconsistent snapshots rather than accepting malformed data.
 
 ## Source and Test Map
 
@@ -73,9 +79,10 @@ Android storage failures return a platform-channel error; Dart does not interpre
 | --- | --- |
 | `test/calculation/` | Pure-Dart allocation, rounding, reconciliation, and optional private regression fixture |
 | `test/workflow/` | Draft parsing/validation, billing-period helpers, and date-range controls |
-| `test/storage/bill_repository_test.dart` | Repository save, conflict, movement, and integrity behavior |
+| `test/storage/bill_repository_test.dart` | Repository save, conflict, movement, replacement, wipe, and integrity behavior |
 | `test/widget_test.dart` | Home, workflow navigation, validation, calculation/result UI, storage-channel flows, and layout |
 | `test/history/` | Category/year selection, graph/list state, and read-only saved details |
 | `test/sharing/` | Reusable card content, full-card PNG output, and share-channel orchestration |
+| `test/app/settings_screen_test.dart` | Settings backup/restore document-channel flows, confirmations, draft reset, wipe, and preference failures |
 
 Automated repository and platform-channel tests do not establish physical-device behavior. Report Android hardware checks separately.

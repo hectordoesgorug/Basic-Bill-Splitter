@@ -82,6 +82,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final nativeCalls = <MethodCall>[];
   final platformCalls = <MethodCall>[];
+  var persistedDarkMode = false;
   final version = RegExp(
     r'^version:\s*(\S+)',
     multiLine: true,
@@ -89,14 +90,20 @@ void main() {
   setUp(() {
     nativeCalls.clear();
     platformCalls.clear();
+    persistedDarkMode = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(AppPlatform.channel, (call) async {
           nativeCalls.add(call);
           return switch (call.method) {
             'getVersion' => version,
+            'getDarkMode' => persistedDarkMode,
+            'setDarkMode' =>
+              persistedDarkMode = (call.arguments as Map)['enabled'] as bool,
             'openRepository' => true,
             'savedBills' || 'overlappingBills' => <String>[],
             'findSavedBill' || 'latestSavedBill' => null,
+            'wipeSavedBills' => 0,
+            'replaceSavedBills' => <String>[],
             _ => null,
           };
         });
@@ -326,7 +333,7 @@ void main() {
     expect(find.text('Choose a bill type'), findsOneWidget);
   });
 
-  testWidgets('About and How to work while Settings remains disabled', (
+  testWidgets('About, How to and Settings are available from the app menu', (
     tester,
   ) async {
     await tester.pumpWidget(const MyApp());
@@ -343,10 +350,10 @@ void main() {
     );
     expect(tester.widget<PopupMenuItem<String>>(historyItem).enabled, isTrue);
     final settingsItem = find.ancestor(
-      of: find.text('Settings — Coming soon'),
+      of: find.text('Settings'),
       matching: find.byType(PopupMenuItem<String>),
     );
-    expect(tester.widget<PopupMenuItem<String>>(settingsItem).enabled, isFalse);
+    expect(tester.widget<PopupMenuItem<String>>(settingsItem).enabled, isTrue);
     await tester.tap(find.text('About'));
     await tester.pumpAndSettle();
     expect(find.text('About Basic Bill Splitter'), findsOneWidget);
@@ -365,6 +372,64 @@ void main() {
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     expect(find.text('Choose a bill type'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Settings preserves an active calculation when opened and closed',
+    (tester) async {
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('billType-electricity')));
+      await tester.pumpAndSettle();
+      await enter(tester, 'amount', '12.34');
+
+      await tester.tap(find.byKey(const ValueKey('appMenu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      final amount = find.descendant(
+        of: find.byKey(const ValueKey('amount')),
+        matching: find.byType(EditableText),
+      );
+      expect(tester.widget<EditableText>(amount).controller.text, '12.34');
+      expect(find.text('Bill Details'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Dark Mode changes the root theme and reloads from preferences', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp).first).themeMode,
+      ThemeMode.light,
+    );
+    await tester.tap(find.byKey(const ValueKey('appMenu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settingsDarkMode')));
+    await tester.pumpAndSettle();
+    expect(persistedDarkMode, isTrue);
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp).first).themeMode,
+      ThemeMode.dark,
+    );
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp).first).themeMode,
+      ThemeMode.dark,
+    );
   });
 
   testWidgets('Home and first-step system Back confirm entered work', (

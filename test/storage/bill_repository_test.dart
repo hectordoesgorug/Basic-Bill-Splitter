@@ -283,6 +283,29 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'replaceAll replaces the complete collection and deleteAll clears it',
+    () async {
+      final repository = InMemoryBillRepository();
+      await repository.save(record(id: 'old'));
+      final replacement = record(
+        id: 'new',
+        assignedMonth: 12,
+        start: '2026-11-23',
+        end: '2026-12-22',
+        cents: 12500,
+      );
+
+      final restored = await repository.replaceAll([replacement]);
+      expect(restored.map((item) => item.id), ['new']);
+      expect(await repository.find('electricity', 2026, 11), isNull);
+      expect(await repository.find('electricity', 2026, 12), isNotNull);
+      expect(await repository.deleteAll(), 1);
+      expect(await repository.allRecords(), isEmpty);
+      expect(await repository.deleteAll(), 0);
+    },
+  );
 }
 
 extension on SavedBillRecord {

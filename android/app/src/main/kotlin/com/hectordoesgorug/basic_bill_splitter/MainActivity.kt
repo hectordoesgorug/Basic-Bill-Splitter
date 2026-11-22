@@ -20,6 +20,8 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val savedBillsDelegate = lazy { SavedBillDatabase(applicationContext) }
     private val savedBills by savedBillsDelegate
+    private var pendingDocumentResult: MethodChannel.Result? = null
+    private var pendingBackupRecords: List<String>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -83,9 +85,107 @@ class MainActivity : FlutterActivity() {
                         )
                     }
                     "sharePng" -> sharePng(call.argument<ByteArray>("png"), result)
+                    "replaceSavedBills" -> storage(result) {
+                        val records = call.argument<List<String>>("records")
+                            ?: error("Missing replacement records")
+                        savedBills.replaceAll(records)
+                    }
+                    "wipeSavedBills" -> storage(result) { savedBills.deleteAll() }
+                    "getDarkMode" -> storage(result) {
+                        getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+                            .getBoolean(DARK_MODE, false)
+                    }
+                    "setDarkMode" -> storage(result) {
+                        val enabled = call.argument<Boolean>("enabled")
+                            ?: error("Missing appearance value")
+                        getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(DARK_MODE, enabled)
+                            .commit()
+                    }
+                    "createBackup" -> {
+                        val records = call.argument<List<String>>("records")
+                            ?: error("Missing backup records")
+                        val filename = call.argument<String>("filename")
+                            ?: error("Missing backup filename")
+                        startDocumentPicker(
+                            Intent(Intent.ACTION_CREATE_DOCUMENT)
+                                .addCategory(Intent.CATEGORY_OPENABLE)
+                                .setType(BACKUP_MIME_TYPE)
+                                .putExtra(Intent.EXTRA_TITLE, filename),
+                            records,
+                            result
+                        )
+                    }
+                    "pickBackup" -> startDocumentPicker(
+                        Intent(Intent.ACTION_OPEN_DOCUMENT)
+                            .addCategory(Intent.CATEGORY_OPENABLE)
+                            .setType(BACKUP_MIME_TYPE),
+                        null,
+                        result
+                    )
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startDocumentPicker(
+        intent: Intent,
+        backupRecords: List<String>?,
+        result: MethodChannel.Result
+    ) {
+        if (pendingDocumentResult != null) {
+            result.error("OPERATION_BUSY", "Another document operation is active.", null)
+            return
+        }
+        pendingDocumentResult = result
+        pendingBackupRecords = backupRecords
+        try {
+            startActivityForResult(intent, DOCUMENT_REQUEST)
+        } catch (_: ActivityNotFoundException) {
+            pendingDocumentResult = null
+            pendingBackupRecords = null
+            result.error("DOCUMENT_PICKER_UNAVAILABLE", "The Android document picker is unavailable.", null)
+        } catch (_: SecurityException) {
+            pendingDocumentResult = null
+            pendingBackupRecords = null
+            result.error("DOCUMENT_ACCESS_FAILED", "The document picker could not be opened.", null)
+        }
+    }
+
+    @Deprecated("Handled for Android Storage Access Framework results")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != DOCUMENT_REQUEST) return
+        val result = pendingDocumentResult ?: return
+        val backupRecords = pendingBackupRecords
+        pendingDocumentResult = null
+        pendingBackupRecords = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            result.success(null)
+            return
+        }
+        if (backupRecords != null) {
+            storage(result) {
+                val output = contentResolver.openOutputStream(uri, "wt")
+                    ?: error("Could not open the selected backup destination")
+                SavedBillBackup.write(output, packageName, backupRecords)
+                true
+            }
+        } else {
+            storage(result) {
+                val input = contentResolver.openInputStream(uri)
+                    ?: error("Could not read the selected backup")
+                val records = SavedBillBackup.read(input, packageName)
+                mapOf(
+                    "formatVersion" to SavedBillBackup.FORMAT_VERSION,
+                    "recordCount" to records.size,
+                    "records" to records
+                )
+            }
+        }
     }
 
     private fun sharePng(bytes: ByteArray?, result: MethodChannel.Result) {
@@ -207,6 +307,13 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        pendingDocumentResult?.error(
+            "DOCUMENT_OPERATION_INTERRUPTED",
+            "The document operation was interrupted.",
+            null
+        )
+        pendingDocumentResult = null
+        pendingBackupRecords = null
         super.onDestroy()
         if (savedBillsDelegate.isInitialized()) {
             storageExecutor.execute { savedBills.close() }
@@ -219,5 +326,9 @@ class MainActivity : FlutterActivity() {
         private const val SHARE_DIRECTORY = "bill-share"
         private const val MAX_SHARE_BYTES = 32 * 1024 * 1024
         private const val SHARE_FILE_TTL_MS = 24 * 60 * 60 * 1000L
+        private const val DOCUMENT_REQUEST = 7410
+        private const val BACKUP_MIME_TYPE = "application/zip"
+        private const val PREFERENCES = "splitter_preferences"
+        private const val DARK_MODE = "dark_mode"
     }
 }
