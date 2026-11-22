@@ -1,5 +1,7 @@
 # Basic Bill Splitter
 
+![Basic Bill Splitter — Simple, exact shared-bill calculation](assets/banner.png)
+
 A Material 3 Flutter app for splitting one residential bill at a time. The
 interface uses the pure-Dart calculation engine and keeps a single in-memory
 draft while navigating between steps.
