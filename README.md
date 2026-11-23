@@ -36,6 +36,30 @@ You can choose another supported method for the current bill:
 - **Equal per household:** divide the bill among households. This method does
   not assign individual monetary shares.
 
+## Screenshots
+
+Select a screenshot to open it at full resolution.
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center"><a href="docs/screenshots/screenshot1%20-%20default.jpg"><img src="docs/screenshots/screenshot1%20-%20default.jpg" alt="Home screen in light theme showing all six expense categories." width="220"></a><br><sub>Home in light theme</sub></td>
+      <td align="center"><a href="docs/screenshots/screenshot2%20-%20dark.jpg"><img src="docs/screenshots/screenshot2%20-%20dark.jpg" alt="Home screen in dark theme showing all six expense categories." width="220"></a><br><sub>Home in dark theme</sub></td>
+      <td align="center"><a href="docs/screenshots/screenshot3%20-%20howto.jpg"><img src="docs/screenshots/screenshot3%20-%20howto.jpg" alt="How-to dialog explaining bill selection, calculation, saving, and sharing." width="220"></a><br><sub>How to use the app</sub></td>
+    </tr>
+    <tr>
+      <td align="center"><a href="docs/screenshots/screenshot4%20-%20settings.jpg"><img src="docs/screenshots/screenshot4%20-%20settings.jpg" alt="Settings screen with backup, restore, data management, dark mode, and currency preferences." width="220"></a><br><sub>Settings and preferences</sub></td>
+      <td align="center"><a href="docs/screenshots/screenshot5%20-%20results.jpg"><img src="docs/screenshots/screenshot5%20-%20results.jpg" alt="Electricity calculation results with a household and occupant allocation breakdown." width="220"></a><br><sub>Calculation results</sub></td>
+      <td align="center"><a href="docs/screenshots/screenshot6%20-%20history.jpg"><img src="docs/screenshots/screenshot6%20-%20history.jpg" alt="History picker listing the six expense categories." width="220"></a><br><sub>Choose a History category</sub></td>
+    </tr>
+    <tr>
+      <td align="center"><a href="docs/screenshots/screenshot7%20-%20chart.jpg"><img src="docs/screenshots/screenshot7%20-%20chart.jpg" alt="Electricity History with an annual monthly chart and saved bill list." width="220"></a><br><sub>History chart and saved bills</sub></td>
+      <td align="center"><a href="docs/screenshots/screenshot8%20-%20sharecard.jpg"><img src="docs/screenshots/screenshot8%20-%20sharecard.jpg" alt="Saved bill card showing household totals and occupant shares, with a Share action." width="220"></a><br><sub>Saved result card and sharing</sub></td>
+      <td align="center"><a href="docs/screenshots/screenshot9%20-%20billdetails.jpg"><img src="docs/screenshots/screenshot9%20-%20billdetails.jpg" alt="Saved bill details with billing period, allocation method, and household and occupant amounts." width="220"></a><br><sub>Saved bill details</sub></td>
+    </tr>
+  </tbody>
+</table>
+
 ## Requirements and running from source
 
 Android is the primary platform. Development requires a Flutter SDK with Dart
