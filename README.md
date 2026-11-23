@@ -2,13 +2,14 @@
 
 ![Basic Bill Splitter — Simple, exact shared-bill calculation](assets/banner.png)
 
-Basic Bill Splitter is an offline Flutter Android app for sharing residential
-expenses among households. Calculate each expense independently, one bill at a
-time, using measured consumption, occupancy days, or equal household shares.
-The Android launcher name is **Splitter**. No account is required.
+Basic Bill Splitter is an offline Flutter Android app for splitting shared
+residential expenses among households, one bill at a time. It uses measured
+consumption, occupancy days, or equal household shares. The Android launcher
+name is **Splitter**. No account is required.
 
-The MVP feature set is implemented. Production release preparation remains in
-progress. A production APK is not yet available.
+**v1.0.0 is the first published stable release.**
+[Download the Android APK](https://github.com/hectordoesgorug/Basic-Bill-Splitter/releases/tag/v1.0.0).
+The universal APK requires Android 7.0 (API 24) or later.
 
 ## Features and expense categories
 
@@ -139,8 +140,8 @@ Read [AGENTS.md](AGENTS.md) before changing the project.
   rounding example, tests, optional private fixture, and build setup.
 - [Data storage](docs/DATA_STORAGE.md): saved snapshots, billing-date rules,
   currency compatibility, backup/restore, and privacy.
-- [Progress](docs/PROGRESS.md): implemented MVP, historical verification, and pending
-  release-candidate checks.
+- [Progress](docs/PROGRESS.md): published v1.0.0 details, historical verification,
+  and remaining validation limitations.
 
 Standard checks from the repository root:
 
@@ -164,13 +165,15 @@ contrast, following the [GitHub logo guidelines](https://brand.github.com/founda
 GitHub and the Invertocat mark are trademarks of GitHub, Inc.; the link does not
 imply sponsorship or endorsement.
 
-The project is licensed under the [MIT License](LICENSE). That license covers
-this project's original work; third-party packages, assets, trademarks, and logos
-retain their own terms. Open **About → Third-Party Licenses** in the app to read
-the bundled Flutter and Android dependency notices offline. Flutter automatically
-collects package and engine notices; Android runtime notices are included from
-[the native notice file](assets/native_android_licenses.txt). The signed release
-APK still needs inspection to confirm the notices are present in the final artifact.
+The project is licensed under the [MIT License](LICENSE). It covers the
+project's original work; third-party packages, assets, trademarks, and logos
+retain their own terms. Open **About → Third-Party Licenses** to read bundled
+Flutter and Android dependency notices offline. Flutter collects package and
+framework notices, and the app adds Android runtime notices from [the native
+notice file](assets/native_android_licenses.txt). The published v1.0.0 APK was
+inspected and includes Flutter's generated `NOTICES.Z` asset with the listed
+native dependency notices. Download the signed APK and SHA-256 checksum from the
+[GitHub Release](https://github.com/hectordoesgorug/Basic-Bill-Splitter/releases/tag/v1.0.0).
 
 The app icon and banner are ChatGPT-generated project artwork. Android launcher
 icon variants use matching app-icon artwork at different densities. AI generation

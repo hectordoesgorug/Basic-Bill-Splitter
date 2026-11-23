@@ -77,14 +77,15 @@ Android storage failures return a platform-channel error; Dart does not interpre
 
 ## Third-Party Notices and Asset Provenance
 
-The About dialog links to Flutter's built-in `showLicensePage`, which displays
+The About dialog opens Flutter's built-in `showLicensePage`, which displays
 entries from `LicenseRegistry`. Flutter bundles package-root licenses and
-Flutter framework/engine notices into its generated notice asset. The app adds
+framework/engine notices into its generated `NOTICES.Z` asset. The app adds
 `assets/native_android_licenses.txt` through the `flutter.licenses` pubspec field;
-Flutter merges that file into the same registry. This keeps the notices available
-offline and avoids a second license viewer or runtime dependency. The release APK
-must still be inspected to confirm that its generated notices are present and
-readable in the shipped artifact.
+Flutter merges that file into the same registry. This keeps notices available
+offline without a second license viewer or runtime dependency. The published
+v1.0.0 APK was inspected: `NOTICES.Z` is present and contains the listed native
+dependency markers and license text. Widget tests cover navigation to the license
+page in both themes; physical-device review of each notice entry is not recorded.
 
 The current resolved Dart dependencies include `material_ui` 1.11.1 and
 `cupertino_ui` 1.1.7 under BSD-3-Clause, and `cupertino_icons` 1.0.9 under MIT.
@@ -117,8 +118,9 @@ attribution.
 | `test/history/` | Category/year selection, graph/list state, and read-only saved details |
 | `test/sharing/` | Reusable card content, full-card PNG output, and share-channel orchestration |
 | `test/app/settings_screen_test.dart` | Settings backup/restore document-channel flows, confirmations, draft reset, wipe, and preference failures |
+| `test/app/third_party_licenses_test.dart` | About-to-license navigation, Back behavior, light/dark theme coverage, and native notice text |
 
-Automated repository and platform-channel tests do not establish physical-device behavior. Report Android hardware checks separately.
+Automated repository and platform-channel tests do not establish all physical-device behavior. Owner-reported Poco X6 acceptance is recorded in [Progress](PROGRESS.md); no individual device test-case results are recorded.
 
 ## Workflow Presentation Details
 
@@ -240,7 +242,7 @@ final result = const BillCalculator().calculate(
 ## Verification
 
 Run these commands from the repository root. See [Progress](PROGRESS.md) for
-historical results and pending release-candidate checks.
+historical test results, release verification, and remaining validation limits.
 
 ```text
 dart format lib test
@@ -305,29 +307,23 @@ private fixture contents.
 ## Build Configuration and Fresh Checkouts
 
 `pubspec.lock` records resolved packages; `pubspec.yaml` keeps the Dart SDK
-constraint at `^3.14.0`. The local resolved package configuration inspected during
-repository review records Flutter 3.50.0 and Dart 3.14.0. The repository does not
-pin an exact Flutter SDK revision. Record the SDK revision and Java/Android
-toolchain when preparing a release candidate.
-
-Android configuration declares AGP 9.3.1, Kotlin plugin 2.4.20, and Gradle 9.5.0.
-Java source/target and Kotlin JVM target are 17. Compile/minimum/target Android
-SDK and NDK versions come from the selected Flutter SDK rather than fixed values
-in the app build file. These settings do not establish tested device coverage.
+constraint at `^3.14.0`. The repository does not pin an exact Flutter SDK revision.
+Release verification on 2026-11-23 used Flutter 3.50.0, Dart 3.14.0, JDK 25.0.4,
+Android SDK Build Tools 36.0.0, AGP 9.3.1, Kotlin 2.4.20, and Gradle 9.5.0.
+Java source/target and Kotlin JVM target are 17. The v1.0.0 APK reports compile
+SDK 36, minimum SDK 24, and target SDK 36; those values do not establish tested
+coverage for every Android device.
 
 The tracked `android/gradle/wrapper/gradle-wrapper.properties` selects the Gradle
 distribution, but `android/.gitignore` excludes `gradlew`, `gradlew.bat`, and
-`gradle-wrapper.jar`. A fresh checkout therefore cannot directly run those
-scripts. The inspected local Flutter tooling (`GradleUtils.getExecutable` and
-`injectGradleWrapperIfNeeded`) copies missing wrapper components from the
-Flutter cache before invoking Gradle. This explains the current Flutter build
-path; it is not evidence of a successful fresh-checkout build.
-
-Before release, verify a separate fresh checkout with the recorded Flutter SDK
-and dependency lockfile. Decide whether to retain Flutter-managed wrapper
-bootstrapping or explicitly track wrapper components. Do not regenerate the
-platform project merely to obtain them. Local SDK paths, signing properties,
-keystores, caches, private fixtures, and generated outputs remain excluded.
+`gradle-wrapper.jar`. Flutter's local `GradleUtils.getExecutable` and
+`injectGradleWrapperIfNeeded` tooling supplies missing wrapper components from
+the Flutter cache before invoking Gradle. On 2026-11-23, a separate clean checkout
+of the v1.0.0 source commit restored dependencies and built a debug APK; Flutter
+bootstrapped the ignored wrapper components and `local.properties`. The signed
+release APK was built in the development checkout, so a signed release build from
+a fresh checkout was not verified. Local SDK paths, signing properties, keystores,
+caches, private fixtures, and generated outputs remain excluded.
 
 ## Production Release Signing
 
